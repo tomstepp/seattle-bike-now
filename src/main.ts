@@ -25,6 +25,7 @@ const map = new maplibregl.Map({
   attributionControl: { compact: true },
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+if (import.meta.env.DEV) Object.assign(window, { map });
 
 const lineWidth: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 11, 1.5, 15, 4, 18, 8];
 
@@ -77,7 +78,13 @@ function addBikeLayers(network: BikeNetwork) {
   }
 
   map.on("click", (e) => {
-    const hit = map.queryRenderedFeatures(e.point).find((f) => f.source === "bike");
+    // Lines are a few px wide; give clicks and taps some slack.
+    const pad = 6;
+    const box: [maplibregl.PointLike, maplibregl.PointLike] = [
+      [e.point.x - pad, e.point.y - pad],
+      [e.point.x + pad, e.point.y + pad],
+    ];
+    const hit = map.queryRenderedFeatures(box).find((f) => f.source === "bike");
     if (!hit) return;
     const p = hit.properties as BikeFeature["properties"];
     const style = SEPARATED[p.facility as keyof typeof SEPARATED] ?? SHARED[p.facility as keyof typeof SHARED];

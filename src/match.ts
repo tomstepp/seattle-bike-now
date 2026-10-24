@@ -26,7 +26,7 @@ export interface SegmentTraffic {
 const BUFFER_M = 15;
 const MAX_ANGLE_DEG = 25;
 const SAMPLE_M = 10;
-const MIN_SHARE = 0.6; // share of a piece's samples that must hit one segment
+const MIN_COVERAGE = 0.3; // share of a segment's length that matched samples must cover
 const CELL_M = 200;
 
 // Equirectangular projection around Seattle; error is well under a meter at city scale.
@@ -66,9 +66,11 @@ const cellKey = (cx: number, cy: number) => `${cx},${cy}`;
 /** Grid index over shared segments. Build once, match every refresh. */
 export class SegmentIndex {
   private cells = new Map<string, Edge[]>();
+  readonly lengths = new Map<string, number>();
 
   constructor(segments: Segment[]) {
     for (const seg of segments) {
+      this.lengths.set(seg.id, lengthM(seg.coords));
       const pts = seg.coords.map(project);
       for (let i = 0; i < pts.length - 1; i++) {
         const edge: Edge = { segId: seg.id, a: pts[i], b: pts[i + 1], angle: undirectedAngle(pts[i], pts[i + 1]) };
@@ -129,29 +131,29 @@ function lengthM(coords: LngLat[]): number {
   return total;
 }
 
-/** Assign each flow piece to at most one segment; return per-segment traffic. */
+/**
+ * Each 10 m sample of a flow piece goes to the nearest same-direction segment.
+ * TomTom pieces often run along many SDOT blocks, so matching per sample (not
+ * per piece) lets one piece color every block it covers. A segment needs
+ * MIN_COVERAGE of its length matched, which filters out glancing hits at corners.
+ */
 export function matchTraffic(index: SegmentIndex, pieces: FlowPiece[]): Map<string, SegmentTraffic> {
   const acc = new Map<string, { weighted: number; meters: number }>();
   for (const piece of pieces) {
-    const samples = sample(piece.coords);
-    if (samples.length === 0) continue;
-    const votes = new Map<string, number>();
-    for (const { p, angle } of samples) {
+    for (const { p, angle } of sample(piece.coords)) {
       const id = index.nearest(p, angle);
-      if (id) votes.set(id, (votes.get(id) ?? 0) + 1);
+      if (!id) continue;
+      const a = acc.get(id) ?? { weighted: 0, meters: 0 };
+      a.weighted += piece.level * SAMPLE_M;
+      a.meters += SAMPLE_M;
+      acc.set(id, a);
     }
-    let winner: string | null = null;
-    let top = 0;
-    for (const [id, n] of votes) if (n > top) [winner, top] = [id, n];
-    if (!winner || top / samples.length < MIN_SHARE) continue;
-
-    const meters = lengthM(piece.coords);
-    const a = acc.get(winner) ?? { weighted: 0, meters: 0 };
-    a.weighted += piece.level * meters;
-    a.meters += meters;
-    acc.set(winner, a);
   }
   const out = new Map<string, SegmentTraffic>();
-  for (const [id, a] of acc) out.set(id, { level: a.weighted / a.meters, matchedMeters: Math.round(a.meters) });
+  for (const [id, a] of acc) {
+    // Two-way streets have a TomTom line per direction, so coverage can exceed 1.
+    if (a.meters < MIN_COVERAGE * (index.lengths.get(id) ?? 0)) continue;
+    out.set(id, { level: a.weighted / a.meters, matchedMeters: Math.round(a.meters) });
+  }
   return out;
 }
