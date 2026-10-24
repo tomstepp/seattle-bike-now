@@ -7,6 +7,9 @@ const SERVICE =
   "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/SDOT_Bike_Facilities/FeatureServer";
 const LAYER_TRAILS = 1;
 const LAYER_EXISTING = 2;
+// Land boundaries only (north at N 145th St, south toward Burien); the shoreline is the rest.
+const CITY_LIMITS =
+  "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/Seattle_City_Limits/FeatureServer/0/query";
 const PAGE = 2000; // service maxRecordCount
 
 type Facility =
@@ -143,6 +146,21 @@ async function main() {
   };
   await writeFile("public/data/bike-network.geojson", JSON.stringify(fc));
   console.log(`wrote ${out.length} segments`, counts, "skipped", skipped);
+
+  // City limits, drawn so lanes and traffic visibly stop at the border rather than just ending.
+  const limitsRes = await fetch(`${CITY_LIMITS}?${new URLSearchParams({ where: "1=1", outSR: "4326", f: "geojson" })}`);
+  if (!limitsRes.ok) throw new Error(`city limits: HTTP ${limitsRes.status}`);
+  const limits = (await limitsRes.json()) as { features: Feature[] };
+  await writeFile(
+    "public/data/city-limits.geojson",
+    JSON.stringify({
+      type: "FeatureCollection",
+      features: limits.features
+        .filter((f) => f.geometry)
+        .map((f) => ({ type: "Feature", geometry: { type: f.geometry!.type, coordinates: round(f.geometry!.coordinates) }, properties: {} })),
+    }),
+  );
+  console.log(`wrote ${limits.features.length} city limit lines`);
 
   // Worker input: shared segments only, plus the TomTom tiles they touch, so
   // each cron run fetches only tiles that can color something.

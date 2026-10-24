@@ -17,7 +17,7 @@ import {
   sparkline,
 } from "./conditions";
 import type { BridgesFile, CountersFile } from "./data-types";
-import { initLocate } from "./locate";
+import { initLocate, NEAR_BOUNDS } from "./locate";
 import { formatDay } from "./seattle-time";
 import { fetchAlerts, fetchHourly } from "./weather";
 
@@ -39,10 +39,7 @@ const map = new maplibregl.Map({
   center: SEATTLE,
   zoom: 12,
   minZoom: 10,
-  maxBounds: [
-    [-122.55, 47.45],
-    [-122.1, 47.8],
-  ],
+  maxBounds: NEAR_BOUNDS,
   attributionControl: { compact: true },
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -94,6 +91,24 @@ function addBikeLayers(network: BikeNetwork) {
       });
     }
   }
+}
+
+// City limits on land, under the bike network. Dashed like a map border.
+const CITY_LIMITS_COLOR = "#d6d3d1";
+function addCityLimits() {
+  map.addSource("city-limits", { type: "geojson", data: "/data/city-limits.geojson" });
+  map.addLayer({
+    id: "city-limits",
+    type: "line",
+    source: "city-limits",
+    layout: { "line-join": "round" },
+    paint: {
+      "line-color": CITY_LIMITS_COLOR,
+      "line-opacity": 0.55,
+      "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1, 15, 2.5],
+      "line-dasharray": [4, 2],
+    },
+  });
 }
 
 // Bridge and counter markers. Colors match the sidebar's odds bands.
@@ -297,11 +312,12 @@ function renderLegend() {
     <ul>${Object.values(SHARED).map((s) => row(s!)).join("")}</ul>
     <h2>Car traffic</h2>
     <ul>${TRAFFIC.map((t) => row({ label: t.label, color: t.color })).join("")}</ul>
-    <h2>Markers</h2>
+    <h2>Also on the map</h2>
     <ul>
       <li>${dot(BRIDGE_COLORS.likely)}Drawbridge, opening likely this hour</li>
       <li>${dot(BRIDGE_COLORS.unlikely)}Drawbridge, opening unlikely</li>
       <li>${dot(COUNTER_COLOR, true)}Bike counter</li>
+      <li><span class="swatch" style="background: repeating-linear-gradient(90deg, ${CITY_LIMITS_COLOR} 0 8px, transparent 8px 12px); opacity: 0.7"></span>Seattle city limits</li>
     </ul>
     ${DEBUG_TOMTOM_KEY ? `<label class="toggle"><input type="checkbox" id="raw-toggle"> Show all TomTom traffic (dev)</label>` : ""}
     <p class="note">Seattle city limits only. Data: SDOT, TomTom, NWS.</p>`;
@@ -364,6 +380,7 @@ loadWeather();
 setInterval(loadWeather, WEATHER_REFRESH_MS);
 
 map.on("load", async () => {
+  addCityLimits();
   addBikeLayers(await networkPromise);
   addRawTrafficLayer();
   await Promise.all([bridgesPromise, countersPromise]);
