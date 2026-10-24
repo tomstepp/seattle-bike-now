@@ -157,3 +157,22 @@ export function matchTraffic(index: SegmentIndex, pieces: FlowPiece[]): Map<stri
   }
   return out;
 }
+
+/**
+ * The segment a set of lines runs along most, or null. Unlike matchTraffic there's
+ * no coverage minimum (a work area may cover a short stretch of a long block), but
+ * it takes two samples (~20 m) so a line merely crossing a lane doesn't count.
+ */
+export function bestSegment(index: SegmentIndex, lines: LngLat[][], minSamples = 2): string | null {
+  const counts = new Map<string, number>();
+  for (const line of lines) {
+    for (const { p, angle } of sample(line)) {
+      const id = index.nearest(p, angle);
+      if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+  }
+  let best: string | null = null;
+  let most = minSamples - 1;
+  for (const [id, n] of counts) if (n > most) [best, most] = [id, n];
+  return best;
+}

@@ -1,6 +1,7 @@
 // The sidebar sections: weather, drawbridges and rider counts. Each section's
 // <summary> carries a one-line status, so it's useful even when collapsed.
 import { daysThisWeek, hoursOn, type Closure } from "./closures";
+import type { Construction } from "./construction";
 import { CRASH_WINDOWS, crashesFor, crashWindow, setCrashWindow, type CrashWindow } from "./crashes";
 import type { BridgeStats, BridgesFile, CollisionsFile, CounterStats, CountersFile } from "./data-types";
 import { esc, fmtInt, streetCase } from "./format";
@@ -206,28 +207,59 @@ const hoursText = (h: string) =>
         .replace(/(AM|PM)/gi, (m) => m[0].toLowerCase())
         .replace(/-/, "–");
 
-export function renderClosures(closures: Closure[], today: string) {
+const CONSTRUCTION_LISTED = 8;
+const IMPACT_ORDER = ["closed", "rerouted", "closed at times", "narrowed"];
+
+/** Events (block parties, markets…) and construction on bike lanes. Either can be null if it failed to load. */
+export function renderClosures(closures: Closure[] | null, construction: Construction[] | null, today: string) {
   // One permit can close several blocks; list it once.
   const permits = new Map<string, Closure>();
-  for (const c of closures) if (!permits.has(c.permit)) permits.set(c.permit, c);
+  for (const c of closures ?? []) if (!permits.has(c.permit)) permits.set(c.permit, c);
 
-  const row = (c: Closure, when: string) =>
-    `<li class="row-head"><span class="name">${esc(streetCase(c.street))}</span><span class="when">${when}</span></li>`;
+  const row = (name: string, when: string) =>
+    `<li class="row-head"><span class="name">${esc(streetCase(name))}</span><span class="when">${when}</span></li>`;
   const todayRows: string[] = [];
   const laterRows: string[] = [];
   for (const c of permits.values()) {
     const days = daysThisWeek(c, today);
     if (!days.length) continue;
-    if (days[0] === today) todayRows.push(row(c, hoursText(hoursOn(c, today)!)));
-    else laterRows.push(row(c, days.map(weekdayName).join(", ")));
+    if (days[0] === today) todayRows.push(row(c.street, hoursText(hoursOn(c, today)!)));
+    else laterRows.push(row(c.street, days.map(weekdayName).join(", ")));
   }
 
+  // Construction, one row per bike-lane street: its worst impact, and how many permits.
+  const byLane = new Map<string, Construction[]>();
+  for (const c of construction ?? []) byLane.set(c.lane, [...(byLane.get(c.lane) ?? []), c]);
+  const lanes = [...byLane]
+    .map(([lane, list]) => ({
+      lane,
+      count: list.length,
+      impact: IMPACT_ORDER.find((i) => list.some((c) => c.impact === i)) ?? list[0].impact,
+    }))
+    .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact) || b.count - a.count);
+  const workRows = lanes
+    .slice(0, CONSTRUCTION_LISTED)
+    .map((l) => row(l.lane || "Bike lane", `${l.impact}${l.count > 1 ? ` · ${l.count}` : ""}`));
+  const more = lanes.length - workRows.length;
+
+  const parts = [
+    closures ? `${todayRows.length} events` : null,
+    construction ? `work on ${lanes.length} streets` : null,
+  ].filter(Boolean);
   setSection(
     "closures",
-    todayRows.length ? `${todayRows.length} today` : `none today · ${laterRows.length} this week`,
-    `${todayRows.length ? `<p class="line">Today</p><ul class="list closure-list">${todayRows.join("")}</ul>` : ""}
-     ${laterRows.length ? `<p class="line later">Later this week</p><ul class="list closure-list">${laterRows.join("")}</ul>` : ""}
-     <p class="note">Block parties, play streets and markets. Tap one on the map for details. Construction isn't included.</p>`,
+    parts.join(" · ") || "unavailable",
+    `${todayRows.length ? `<p class="line">Events today</p><ul class="list closure-list">${todayRows.join("")}</ul>` : ""}
+     ${laterRows.length ? `<p class="line later">Events later this week</p><ul class="list closure-list">${laterRows.join("")}</ul>` : ""}
+     ${
+       workRows.length
+         ? `<p class="line later">Construction on bike lanes</p><ul class="list closure-list">${workRows.join("")}</ul>
+            ${more > 0 ? `<p class="note">+${more} more streets on the map.</p>` : ""}`
+         : construction
+           ? `<p class="line later">No permitted construction on bike lanes today.</p>`
+           : ""
+     }
+     <p class="note">From SDOT street-use permits. Construction permits span weeks, and crews may not work every day; tap one on the map for details.</p>`,
   );
 }
 

@@ -7,6 +7,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
 import type { TrafficSnapshot } from "../worker/traffic";
 import { daysThisWeek, hoursOn, type Closure } from "./closures";
+import type { Construction } from "./construction";
 import { bridgeChance, bridgeChart, chanceClass, changeText, severityText, sparkline } from "./conditions";
 import { crashesFor, crashWindow, onCrashWindow } from "./crashes";
 import type { BikeNetwork, BridgesFile, CollisionSpot, CollisionsFile, CountersFile, RacksFile, RepairFile } from "./data-types";
@@ -197,6 +198,41 @@ function addClosureLayer(list: Closure[]) {
   );
 }
 
+// Construction that may affect a bike lane: a dashed band, so it reads apart from
+// the solid event closures.
+const CONSTRUCTION_COLOR = "#f97316";
+let construction: Construction[] = [];
+
+function addConstructionLayer(list: Construction[]) {
+  construction = list;
+  map.addSource("construction", {
+    type: "geojson",
+    data: {
+      type: "FeatureCollection",
+      features: list.map((c, i) => ({
+        type: "Feature" as const,
+        geometry: { type: "MultiLineString" as const, coordinates: c.lines },
+        properties: { i },
+      })),
+    },
+  });
+  map.addLayer(
+    {
+      id: "construction",
+      type: "line",
+      source: "construction",
+      layout: { "line-join": "round" },
+      paint: {
+        "line-color": CONSTRUCTION_COLOR,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 11, 4, 15, 12],
+        "line-opacity": 0.7,
+        "line-dasharray": [1, 0.6],
+      },
+    },
+    firstBikeLayer(),
+  );
+}
+
 // Bike crashes, one dot per location, bigger with more crashes, for the chosen time window.
 const CRASH_COLOR = "#fde047";
 let collisions: CollisionsFile | null = null;
@@ -354,6 +390,13 @@ const swatchDot = (color: string, ring = false) =>
   `<span class="dot" style="${ring ? `border-color:${color}` : `background:${color}`}"></span>`;
 const TOGGLES: Toggle[] = [
   { key: "closures", label: "Street closures", swatch: `<span class="swatch wide" style="background:${CLOSURE_COLOR}"></span>`, layers: ["closures"], on: true },
+  {
+    key: "construction",
+    label: "Construction on bike lanes",
+    swatch: `<span class="swatch wide" style="background: repeating-linear-gradient(90deg, ${CONSTRUCTION_COLOR} 0 5px, transparent 5px 8px)"></span>`,
+    layers: ["construction"],
+    on: true,
+  },
   { key: "crashes", label: "Bike crashes", swatch: swatchDot(CRASH_COLOR), layers: ["crashes"], on: true },
   { key: "bridges", label: "Drawbridges", swatch: swatchDot("#f472b6"), layers: ["bridges"], on: true },
   { key: "counters", label: "Bike counters", swatch: swatchDot("#fafaf9", true), layers: ["counters"], on: true },
@@ -412,6 +455,7 @@ map.on("click", (e) => {
   const bikeHit = hits.find((f) => f.source === "bike");
   const crashHit = hits.find((f) => f.source === "crashes");
   const closureHit = hits.find((f) => f.source === "closures");
+  const workHit = hits.find((f) => f.source === "construction");
   const rackHit = hits.find((f) => f.source === "racks");
   const repairHit = hits.find((f) => f.source === "repair");
 
@@ -451,6 +495,14 @@ map.on("click", (e) => {
       [s.lng, s.lat],
       `<strong>${esc(streetCase(s.location))}</strong><br>${s.crashes} bike ${s.crashes === 1 ? "crash" : "crashes"} since ${formatDayYear(crashSince)}<br>${severityText(s)}<br>Most recent ${formatDayYear(s.last)}`,
     );
+  } else if (workHit) {
+    const c = construction[workHit.properties.i as number];
+    popup(
+      e.lngLat,
+      `<strong>Construction: bike lane ${esc(c.impact)}</strong>${c.lane ? `<br>${esc(streetCase(c.lane))}` : ""}<br>${esc(c.work)}${
+        c.workDays ? `, ${esc(c.workDays.toLowerCase())}` : ""
+      }<br>Permit runs until ${formatDayYear(c.end)}<br><span class="sub">${esc(streetCase(c.address))} · ${esc(c.permit)}</span>`,
+    );
   } else if (closureHit) {
     const c = closures[closureHit.properties.i as number];
     const today = seattleDate();
@@ -476,7 +528,7 @@ map.on("click", (e) => {
     popup(e.lngLat, `<strong>${p.street || "Unnamed"}</strong><br>${style?.label ?? p.facility}${grade}${traffic}`);
   }
 });
-for (const layer of ["bridges", "counters", "crashes", "closures", "racks", "repair"]) {
+for (const layer of ["bridges", "counters", "crashes", "closures", "construction", "racks", "repair"]) {
   map.on("mouseenter", layer, () => (map.getCanvas().style.cursor = "pointer"));
   map.on("mouseleave", layer, () => (map.getCanvas().style.cursor = ""));
 }
@@ -550,6 +602,8 @@ const keyRow = (s: FacilityStyle) => {
 
 // What each layer looks like, shown in the map key only while that layer is on.
 const LAYER_KEYS: Record<string, () => string> = {
+  construction: () =>
+    `<li><span class="swatch wide" style="background: repeating-linear-gradient(90deg, ${CONSTRUCTION_COLOR} 0 5px, transparent 5px 8px)"></span>Construction may affect lane</li>`,
   closures: () => `<li><span class="swatch wide" style="background:${CLOSURE_COLOR}"></span>Street closed today</li>
     <li><span class="swatch wide" style="background:${CLOSURE_COLOR}; opacity:0.3"></span>Closed later this week</li>`,
   crashes: () => `<li>${swatchDot(CRASH_COLOR)}Bike crashes (bigger = more)</li>`,
@@ -622,6 +676,7 @@ export interface MapInputs {
   counters: Promise<CountersFile | null>;
   collisions: Promise<CollisionsFile | null>;
   closures: Promise<Closure[] | null>;
+  construction: Promise<Construction[] | null>;
   onMapClick: () => void;
 }
 
@@ -643,6 +698,8 @@ export function startMap(inputs: MapInputs) {
     const [crashFile, closureList] = await Promise.all([inputs.collisions, inputs.closures]);
     if (crashFile) addCrashLayer(crashFile);
     if (closureList) addClosureLayer(closureList);
+    const work = await inputs.construction;
+    if (work) addConstructionLayer(work);
     renderLayers();
     renderKey();
     for (const t of TOGGLES) applyToggle(t, toggleOn(t));

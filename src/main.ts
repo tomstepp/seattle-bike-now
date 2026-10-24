@@ -2,6 +2,8 @@
 // The map module loads in parallel, so these panels can show before MapLibre does.
 import "./style.css";
 import { fetchClosures, type Closure } from "./closures";
+import { fetchConstruction, onBikeLanes, type Construction } from "./construction";
+import { SegmentIndex } from "./match";
 import { onCrashWindow } from "./crashes";
 import {
   bridgeChance,
@@ -114,17 +116,23 @@ const collisions = getJson<CollisionsFile>("/data/collisions.json")
     return null;
   });
 
-// Closures are live from SDOT; "today" is Seattle's date.
-const closures: Promise<Closure[] | null> = fetchClosures(seattleDate())
-  .then((list) => {
-    renderClosures(list, seattleDate());
-    return list;
+// Closures and construction are live from SDOT; "today" is Seattle's date.
+const today = seattleDate();
+const closures: Promise<Closure[] | null> = fetchClosures(today).catch((err) => {
+  console.warn("closures unavailable", err);
+  return null;
+});
+// Construction permits flag bike-lane impact even where there's no lane; keep the ones on a mapped lane.
+const construction: Promise<Construction[] | null> = Promise.all([fetchConstruction(today), network])
+  .then(([permits, net]) => {
+    const index = new SegmentIndex(net.features.map((f) => ({ id: f.properties.id, coords: f.geometry.coordinates })));
+    return onBikeLanes(permits, index, new Map(net.features.map((f) => [f.properties.id, f.properties.street])));
   })
   .catch((err) => {
-    console.warn("closures unavailable", err);
-    renderUnavailable("closures", "street closures");
+    console.warn("construction unavailable", err);
     return null;
   });
+Promise.all([closures, construction]).then(([c, w]) => renderClosures(c, w, today));
 
 async function loadWeather() {
   try {
@@ -141,4 +149,4 @@ loadWeather();
 setInterval(loadWeather, WEATHER_REFRESH_MS);
 
 // Tapping the map closes the phone menu, so popups aren't hidden behind it.
-import("./map").then(({ startMap }) => startMap({ network, bridges, counters, collisions, closures, onMapClick: closeMenu }));
+import("./map").then(({ startMap }) => startMap({ network, bridges, counters, collisions, closures, construction, onMapClick: closeMenu }));
