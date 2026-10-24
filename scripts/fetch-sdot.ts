@@ -7,6 +7,8 @@ const SERVICE =
   "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/SDOT_Bike_Facilities/FeatureServer";
 const LAYER_TRAILS = 1;
 const LAYER_EXISTING = 2;
+// Street blocks with SLOPE_PCT; a bike facility's SEGKEY is its block's COMPKEY.
+const STREETS = "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/Seattle_Streets_1/FeatureServer/0/query";
 // Land boundaries only (north at N 145th St, south toward Burien); the shoreline is the rest.
 const CITY_LIMITS =
   "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/Seattle_City_Limits/FeatureServer/0/query";
@@ -75,9 +77,9 @@ async function fetchLayer(layer: number, outFields: string): Promise<Feature[]> 
   }
 }
 
-// ~11 cm precision; keeps the file small.
+// ~1 m precision: well under lane width, and a third smaller gzipped than 6 decimals.
 function round(coords: unknown): unknown {
-  if (typeof coords === "number") return Math.round(coords * 1e6) / 1e6;
+  if (typeof coords === "number") return Math.round(coords * 1e5) / 1e5;
   return (coords as unknown[]).map(round);
 }
 
@@ -86,13 +88,36 @@ function streetFromDesc(desc: unknown): string {
   return String(desc ?? "").split(/ BETWEEN | (?=\()/)[0].trim();
 }
 
+/** Block COMPKEY -> grade in percent (unsigned; the city doesn't record direction). */
+async function fetchSlopes(): Promise<Map<number, number>> {
+  const slopes = new Map<number, number>();
+  for (let offset = 0; ; offset += PAGE) {
+    const params = new URLSearchParams({
+      where: "SLOPE_PCT IS NOT NULL",
+      outFields: "COMPKEY,SLOPE_PCT",
+      returnGeometry: "false",
+      orderByFields: "OBJECTID",
+      resultOffset: String(offset),
+      resultRecordCount: String(PAGE),
+      f: "json",
+    });
+    const res = await fetch(`${STREETS}?${params}`);
+    if (!res.ok) throw new Error(`streets: HTTP ${res.status}`);
+    const page = (await res.json()) as { features?: { attributes: { COMPKEY: number; SLOPE_PCT: number } }[]; error?: unknown };
+    if (!page.features) throw new Error(`streets: ${JSON.stringify(page.error)}`);
+    for (const f of page.features) slopes.set(f.attributes.COMPKEY, f.attributes.SLOPE_PCT);
+    if (page.features.length < PAGE) return slopes;
+  }
+}
+
 async function main() {
   await mkdir("data/raw", { recursive: true });
   await mkdir("public/data", { recursive: true });
 
-  const [existing, trails] = await Promise.all([
-    fetchLayer(LAYER_EXISTING, "OBJECTID,CATEGORY,UNITDESC,CURRENT_STATUS"),
+  const [existing, trails, slopes] = await Promise.all([
+    fetchLayer(LAYER_EXISTING, "OBJECTID,CATEGORY,UNITDESC,CURRENT_STATUS,SEGKEY"),
     fetchLayer(LAYER_TRAILS, "OBJECTID,ORD_STNAME_CONCAT"),
+    fetchSlopes(),
   ]);
   await writeFile("data/raw/existing-bike-facilities.geojson", JSON.stringify(existing));
   await writeFile("data/raw/multi-use-trails.geojson", JSON.stringify(trails));
@@ -117,6 +142,8 @@ async function main() {
         facility,
         separated: SEPARATED.has(facility),
         street: streetFromDesc(p.UNITDESC),
+        // Off-street paths have no block, so no slope.
+        ...(slopes.has(Number(p.SEGKEY)) ? { slope: slopes.get(Number(p.SEGKEY)) } : {}),
       },
     });
   }
@@ -145,7 +172,8 @@ async function main() {
     features: out,
   };
   await writeFile("public/data/bike-network.geojson", JSON.stringify(fc));
-  console.log(`wrote ${out.length} segments`, counts, "skipped", skipped);
+  const withSlope = out.filter((f) => f.properties.slope !== undefined).length;
+  console.log(`wrote ${out.length} segments (${withSlope} with slope)`, counts, "skipped", skipped);
 
   // City limits, drawn so lanes and traffic visibly stop at the border rather than just ending.
   const limitsRes = await fetch(`${CITY_LIMITS}?${new URLSearchParams({ where: "1=1", outSR: "4326", f: "geojson" })}`);

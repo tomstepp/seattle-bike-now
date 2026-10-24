@@ -1,5 +1,15 @@
-// Shapes of the static files written by scripts/fetch-bridges.ts and
-// scripts/fetch-counters.ts and read by the site.
+// Shapes of the static files in public/data/, written by scripts/ and read by the site.
+
+export interface BikeFeature {
+  type: "Feature";
+  geometry: { type: "LineString"; coordinates: [number, number][] };
+  properties: { id: string; facility: string; separated: boolean; street: string; slope?: number };
+}
+
+export interface BikeNetwork {
+  type: "FeatureCollection";
+  features: BikeFeature[];
+}
 
 export interface BridgeStats {
   id: string;
@@ -35,4 +45,54 @@ export interface CounterStats {
 export interface CountersFile {
   generatedAt: string;
   counters: CounterStats[];
+}
+
+/** One crash: date, people injured, seriously injured, killed. */
+export type Crash = [day: string, injuries: number, serious: number, fatal: number];
+
+/** Every crash at one location (an intersection or a block). */
+export interface CollisionPlace {
+  location: string;
+  lng: number;
+  lat: number;
+  crashes: Crash[];
+}
+
+export interface CollisionsFile {
+  generatedAt: string;
+  since: string; // YYYY-MM-DD
+  through: string; // newest crash in SDOT's records
+  places: CollisionPlace[];
+}
+
+/** A location's crashes within one time window, for the map and sidebar. */
+export interface CollisionSpot {
+  location: string;
+  lng: number;
+  lat: number;
+  crashes: number;
+  injuries: number;
+  serious: number; // serious injuries
+  fatal: number;
+  last: string; // most recent crash, YYYY-MM-DD
+}
+
+export interface RacksFile {
+  generatedAt: string;
+  racks: [lng: number, lat: number, capacity: number][];
+}
+
+export interface RepairStation {
+  lng: number;
+  lat: number;
+  name: string | null;
+  // What the stand has, from OpenStreetMap tags where mappers recorded them.
+  pump: boolean | null;
+  tools: boolean | null;
+  hours: string | null;
+}
+
+export interface RepairFile {
+  generatedAt: string;
+  stations: RepairStation[];
 }

@@ -1,7 +1,10 @@
 // The sidebar sections: weather, drawbridges and rider counts. Each section's
 // <summary> carries a one-line status, so it's useful even when collapsed.
-import type { BridgeStats, BridgesFile, CounterStats, CountersFile } from "./data-types";
-import { formatDay, formatTime, hourLabel, seattleHour, seattleIsWeekend, shortHour, sunTimes } from "./seattle-time";
+import { daysThisWeek, hoursOn, type Closure } from "./closures";
+import { CRASH_WINDOWS, crashesFor, crashWindow, setCrashWindow, type CrashWindow } from "./crashes";
+import type { BridgeStats, BridgesFile, CollisionsFile, CounterStats, CountersFile } from "./data-types";
+import { esc, fmtInt, streetCase } from "./format";
+import { formatDay, formatDayYear, formatTime, hourLabel, seattleHour, seattleIsWeekend, shortHour, sunTimes } from "./seattle-time";
 import { RAIN_LIKELY, WINDY_MPH, type Alert, type Hour } from "./weather";
 
 const SEATTLE = { lat: 47.62, lng: -122.35 };
@@ -12,8 +15,6 @@ export const BRIDGE_POSSIBLE = 0.15;
 // Bridges whose log stopped this long ago get flagged as stale.
 const STALE_DAYS = 14;
 
-const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
-const fmtInt = (n: number) => n.toLocaleString("en-US");
 
 function setSection(id: string, summary: string, body: string) {
   const el = document.getElementById(id)!;
@@ -188,5 +189,89 @@ export function renderRiders(file: CountersFile) {
     `<p class="line">Average riders per day over the 30 days through ${formatDay(through)}, vs. the same weeks last year. Lines: the past year, by week.</p>
      <ul class="list">${rows}</ul>
      <p class="note">Bikes and scooters. SDOT counters, published monthly.</p>`,
+  );
+}
+
+// ---------- Closures ----------
+
+const weekdayName = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+// "2:30PM-6PM" -> "2:30–6p"; "6AM-4PM" -> "6a–4p"
+const hoursText = (h: string) =>
+  h === "all day"
+    ? h
+    : h
+        .replace(/\s+/g, "")
+        .replace(/(AM|PM)/gi, (m) => m[0].toLowerCase())
+        .replace(/-/, "–");
+
+export function renderClosures(closures: Closure[], today: string) {
+  // One permit can close several blocks; list it once.
+  const permits = new Map<string, Closure>();
+  for (const c of closures) if (!permits.has(c.permit)) permits.set(c.permit, c);
+
+  const row = (c: Closure, when: string) =>
+    `<li class="row-head"><span class="name">${esc(streetCase(c.street))}</span><span class="when">${when}</span></li>`;
+  const todayRows: string[] = [];
+  const laterRows: string[] = [];
+  for (const c of permits.values()) {
+    const days = daysThisWeek(c, today);
+    if (!days.length) continue;
+    if (days[0] === today) todayRows.push(row(c, hoursText(hoursOn(c, today)!)));
+    else laterRows.push(row(c, days.map(weekdayName).join(", ")));
+  }
+
+  setSection(
+    "closures",
+    todayRows.length ? `${todayRows.length} today` : `none today · ${laterRows.length} this week`,
+    `${todayRows.length ? `<p class="line">Today</p><ul class="list closure-list">${todayRows.join("")}</ul>` : ""}
+     ${laterRows.length ? `<p class="line later">Later this week</p><ul class="list closure-list">${laterRows.join("")}</ul>` : ""}
+     <p class="note">Block parties, play streets and markets. Tap one on the map for details. Construction isn't included.</p>`,
+  );
+}
+
+// ---------- Crashes ----------
+
+const SPOTS_LISTED = 6;
+
+export const severityText = (s: { injuries: number; serious: number; fatal: number }) =>
+  [s.fatal && `${s.fatal} fatal`, s.serious && `${s.serious} serious`, s.injuries && `${s.injuries} injured`].filter(Boolean).join(", ") ||
+  "no injuries";
+
+const monthYear = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+export function renderCrashes(file: CollisionsFile) {
+  const key = crashWindow();
+  const { window: w, since, spots } = crashesFor(file, key);
+  const total = spots.reduce((n, s) => n + s.crashes, 0);
+  const rows = spots
+    .slice(0, SPOTS_LISTED)
+    .map(
+      (s) => `<li><button type="button" class="spot" data-lng="${s.lng}" data-lat="${s.lat}">
+        <div class="row-head"><span class="name">${esc(streetCase(s.location))}</span><span class="count">${s.crashes}</span></div>
+        <div class="sub">${severityText(s)} · ${formatDayYear(s.last)}</div>
+      </button></li>`,
+    )
+    .join("");
+  const buttons = CRASH_WINDOWS.map(
+    (x) => `<button type="button" data-window="${x.key}" aria-pressed="${x.key === key}">${x.label}</button>`,
+  ).join("");
+  setSection(
+    "crashes",
+    `${fmtInt(total)} in ${w.label}`,
+    `<div class="segmented" role="group" aria-label="Time span">${buttons}</div>
+     <p class="line">${fmtInt(total)} crashes involving someone on a bike, ${monthYear(since)} to ${monthYear(file.through)}.${spots.length ? " Most at:" : ""}</p>
+     <ul class="list">${rows}</ul>
+     <p class="note">Tap a location to see it on the map. SDOT's records run a few months behind.</p>`,
+  );
+  document.querySelectorAll<HTMLButtonElement>("#crashes [data-window]").forEach((b) =>
+    b.addEventListener("click", () => setCrashWindow(b.dataset.window as CrashWindow)),
+  );
+  // The map module listens for this and flies there.
+  document.querySelectorAll<HTMLButtonElement>("#crashes .spot").forEach((b) =>
+    b.addEventListener("click", () =>
+      window.dispatchEvent(new CustomEvent("focus-map", { detail: { lng: Number(b.dataset.lng), lat: Number(b.dataset.lat) } })),
+    ),
   );
 }

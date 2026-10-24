@@ -8,6 +8,8 @@ const parts = (d: Date) =>
       .map((p) => [p.type, p.value]),
   );
 
+/** Seattle's calendar date, YYYY-MM-DD. */
+export const seattleDate = (d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 export const seattleHour = (d = new Date()) => Number(parts(d).hour);
 export const seattleIsWeekend = (d = new Date()) => ["Sat", "Sun"].includes(parts(d).weekday);
 
@@ -23,6 +25,10 @@ export const hourLabel = (h: number) => `${h % 12 || 12}${h < 12 ? "a" : "p"}`;
 /** "2026-09-30" -> "Sep 30" */
 export const formatDay = (day: string) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+/** "2024-12-13" -> "Dec 13, 2024" */
+export const formatDayYear = (day: string) =>
+  new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
 // Sunrise/sunset from NOAA's solar position equations; good to a few minutes.
 export function sunTimes(lat: number, lng: number, d = new Date()): { sunrise: Date; sunset: Date } {

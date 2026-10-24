@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Riding conditions for Seattle bike commuters: weather, drawbridges, rider counts, and car traffic on the streets bikes share." />
     <title>Seattle Bike Now</title>
+    <!-- Start these before the JavaScript arrives; the map and panels need them first. -->
+    <link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin />
+    <link rel="preconnect" href="https://api.weather.gov" crossorigin />
+    <link rel="preload" href="/data/bike-network.geojson" as="fetch" crossorigin="anonymous" />
+    <link rel="preload" href="/data/bridges.json" as="fetch" crossorigin="anonymous" />
+    <link rel="preload" href="/data/counters.json" as="fetch" crossorigin="anonymous" />
+    <link rel="preload" href="/data/collisions.json" as="fetch" crossorigin="anonymous" />
+    <link rel="preconnect" href="https://data.seattle.gov" crossorigin />
   </head>
   <body>
     <div id="map"></div>
@@ -28,12 +36,20 @@
           <summary><span class="label">Bridges</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>
+        <details id="closures">
+          <summary><span class="label">Closures</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
         <details id="riders">
           <summary><span class="label">Riders</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>
+        <details id="crashes">
+          <summary><span class="label">Crashes</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
         <details id="legend">
-          <summary><span class="label">Map key</span><span class="status">bike lanes, traffic</span></summary>
+          <summary><span class="label">Map key</span><span class="status">layers on and off</span></summary>
           <div class="body"></div>
         </details>
       </div>

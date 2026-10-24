@@ -339,6 +339,91 @@ header h1 {
   flex: none;
 }
 
+.swatch.wide {
+  height: 7px;
+  opacity: 0.7;
+}
+
+#legend .toggles .toggle {
+  margin: 0;
+  color: var(--text);
+  gap: 0;
+}
+
+#legend .toggles input {
+  margin: 0 8px 0 0;
+}
+
+#legend .toggles .swatch {
+  margin-right: 8px;
+}
+
+.line.later {
+  margin-top: 12px;
+}
+
+/* Crash time span: 3 months / 1 year / 5 years. */
+.segmented {
+  display: flex;
+  gap: 2px;
+  margin: 0 0 8px;
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.segmented button {
+  all: unset;
+  flex: 1;
+  text-align: center;
+  padding: 4px 0;
+  border-radius: 5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.segmented button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.segmented button:focus-visible {
+  outline: 2px solid var(--rain);
+}
+
+/* Closures: one line each, name left, when right. */
+.closure-list {
+  gap: 4px;
+}
+
+.closure-list .row-head .when {
+  color: var(--muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crash hotspots in the sidebar are buttons that fly the map there. */
+.spot {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.spot:hover,
+.spot:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.spot:focus-visible {
+  outline: 2px solid var(--rain);
+}
+
 .dot {
   width: 8px;
   height: 8px;
