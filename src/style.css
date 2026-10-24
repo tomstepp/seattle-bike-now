@@ -101,3 +101,12 @@ header h1 {
 .maplibregl-popup-tip {
   display: none;
 }
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--muted);
+  cursor: pointer;
+}

@@ -36,3 +36,5 @@ export const TRAFFIC = [
   { label: "Slowing", min: 0.4, color: "#f59e0b" },
   { label: "Backed up", min: 0, color: "#ef4444" },
 ] as const;
+
+export const trafficFor = (level: number) => TRAFFIC.find((t) => level >= t.min) ?? TRAFFIC[2];
