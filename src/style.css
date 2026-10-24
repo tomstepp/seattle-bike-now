@@ -434,20 +434,22 @@ header h1 {
   flex: none;
 }
 
-.maplibregl-popup-content {
+/* Prefixed with .maplibregl-popup so these beat MapLibre's own CSS, which
+   loads after this file (with the map chunk). */
+.maplibregl-popup .maplibregl-popup-content {
   background: var(--panel-bg);
   color: var(--text);
   font-size: 12px;
   line-height: 1.45;
 }
 
-.maplibregl-popup-content hr {
+.maplibregl-popup .maplibregl-popup-content hr {
   border: 0;
   border-top: 1px solid var(--border);
   margin: 8px 0;
 }
 
-.maplibregl-popup-tip {
+.maplibregl-popup .maplibregl-popup-tip {
   display: none;
 }
 

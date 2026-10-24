@@ -12,16 +12,22 @@ const WEATHER_REFRESH_MS = 15 * 60_000;
 // Bridge odds change on the hour; re-check often enough to roll over promptly.
 const BRIDGE_REFRESH_MS = 5 * 60_000;
 
-// Sections start collapsed; each viewer's own open/closed choice is remembered.
+// Sections start collapsed and open one at a time; the open one is remembered.
+const OPEN_KEY = "section-open";
 function initSections() {
-  for (const el of document.querySelectorAll<HTMLDetailsElement>(".sections details")) {
-    const key = `section-open:${el.id}`;
-    try {
-      el.open = localStorage.getItem(key) === "1";
-    } catch {}
+  const sections = [...document.querySelectorAll<HTMLDetailsElement>(".sections details")];
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(OPEN_KEY);
+  } catch {}
+  for (const el of sections) {
+    el.open = el.id === saved;
     el.addEventListener("toggle", () => {
+      if (el.open) for (const other of sections) if (other !== el) other.open = false;
+      // Closing the open section leaves none open.
+      if (!el.open && sections.some((s) => s.open)) return;
       try {
-        localStorage.setItem(key, el.open ? "1" : "0");
+        localStorage.setItem(OPEN_KEY, el.open ? el.id : "");
       } catch {}
     });
   }
