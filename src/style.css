@@ -1,0 +1,103 @@
+:root {
+  --panel-bg: rgba(17, 17, 20, 0.88);
+  --text: #e7e5e4;
+  --muted: #a8a29e;
+  --border: rgba(255, 255, 255, 0.08);
+  color-scheme: dark;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #0c0c0e;
+  color: var(--text);
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+}
+
+.panel {
+  position: absolute;
+  left: 12px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  backdrop-filter: blur(6px);
+  max-width: calc(100vw - 24px - 48px);
+  box-sizing: border-box;
+}
+
+header.panel {
+  top: 12px;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+#updated {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+#legend {
+  bottom: 28px;
+  font-size: 12px;
+}
+
+#legend h2 {
+  margin: 8px 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+#legend h2:first-child {
+  margin-top: 0;
+}
+
+#legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 20px;
+}
+
+.swatch {
+  width: 24px;
+  height: 4px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.maplibregl-popup-content {
+  background: var(--panel-bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.maplibregl-popup-tip {
+  display: none;
+}
