@@ -7,15 +7,22 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "data": "tsx scripts/fetch-sdot.ts"
+    "data": "tsx scripts/fetch-sdot.ts",
+    "bench": "tsx scripts/bench-worker.ts",
+    "dev:worker": "wrangler dev --test-scheduled",
+    "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
-    "maplibre-gl": "6.13.0"
+    "@mapbox/vector-tile": "3.0.0",
+    "maplibre-gl": "6.13.0",
+    "pbf": "5.1.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "5.20261009.1",
     "@types/node": "24.19.2",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "wrangler": "4.149.0"
   }
 }

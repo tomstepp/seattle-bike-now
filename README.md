@@ -6,13 +6,24 @@ Seattle's bike network with live car traffic on the streets bikes share. See [PL
 
 ```bash
 npm install
-npm run data   # download SDOT bike network -> public/data/bike-network.geojson
-npm run dev
+npm run data        # SDOT bike network -> public/data/ and worker/data/
+npm run build       # the worker serves dist/
+npm run dev:worker  # Cloudflare Worker on :8787 (cron + /api/traffic)
+npm run dev         # Vite on :5173, proxies /api to the worker
 ```
 
-Live traffic needs a free TomTom key: copy `.env.example` to `.env` and set `VITE_TOMTOM_KEY`.
-For local development only: anything prefixed `VITE_` ends up in the browser bundle, so traffic
-moves behind a scheduled worker before this is deployed.
+Secrets, both gitignored:
+- `.dev.vars`: `TOMTOM_KEY=...` for the worker.
+- `.env`: optional `VITE_TOMTOM_KEY=...` turns on a dev-only "show all TomTom traffic" toggle. It is never read in production builds.
+
+Trigger a refresh locally with `curl "localhost:8787/__scheduled?cron=*/10+*+*+*+*"`, and measure CPU per refresh with `npm run bench`.
+
+## Architecture
+
+One Cloudflare Worker ([worker/index.ts](worker/index.ts)):
+- **Cron, every 10 min:** fetches the 93 z14 TomTom flow tiles that touch a shared bike segment, matches them ([src/match.ts](src/match.ts)), and writes one snapshot to KV.
+- **`/api/traffic`:** serves that snapshot, so visitor traffic never multiplies TomTom calls.
+- **Everything else:** static assets from `dist/`.
 
 ## Data
 
