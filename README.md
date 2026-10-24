@@ -1,12 +1,12 @@
 # Seattle Bike Now
 
-Seattle's bike network with live car traffic on the streets bikes share. See [PLAN.md](PLAN.md) for the full plan.
+Riding conditions for Seattle bike commuters: weather, drawbridge odds, rider counts, and live car traffic on the streets bikes share. See [PLAN.md](PLAN.md) for the full plan.
 
 ## Run locally
 
 ```bash
 npm install
-npm run data        # SDOT bike network -> public/data/ and worker/data/
+npm run data        # bike network, bridge odds, rider counts -> public/data/ (+ worker/data/)
 npm run build       # the worker serves dist/
 npm run dev:worker  # Cloudflare Worker on :8787 (cron + /api/traffic)
 npm run dev         # Vite on :5173, proxies /api to the worker
@@ -29,6 +29,9 @@ One Cloudflare Worker ([worker/index.ts](worker/index.ts)):
 
 - [SDOT Bike Facilities FeatureServer](https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/SDOT_Bike_Facilities/FeatureServer): layer 2 (Existing Bike Facilities) and layer 1 (Multi-use Trails, Seattle only)
 - [TomTom Traffic Flow vector tiles](https://developer.tomtom.com/traffic-api/documentation/traffic-flow/vector-flow-tiles) (relative flow)
+- [SDOT Drawbridge Status](https://data.seattle.gov/d/gm8h-9449): opening log, published about daily. `npm run data:bridges` turns the last year into per-hour odds of an opening (weekday vs. weekend). There is no live feed.
+- SDOT bike counters on data.seattle.gov (Fremont Bridge, 2nd Ave, Burke-Gilman, Spokane St, 12th Ave S, I-90 trail, Thomas St), published monthly. `npm run data:counters` writes 30-day averages, year-over-year change and weekly totals. Counter locations are approximate; the datasets carry none.
+- [National Weather Service](https://www.weather.gov/documentation/services-web-api) hourly forecast and alerts, fetched by the browser (no key).
 - Basemap: [OpenFreeMap](https://openfreemap.org) Dark
 
 | SDOT `CATEGORY` | Facility | Group |

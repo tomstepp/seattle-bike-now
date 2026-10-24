@@ -1,8 +1,16 @@
 :root {
-  --panel-bg: rgba(17, 17, 20, 0.88);
+  --panel-bg: rgba(17, 17, 20, 0.9);
   --text: #e7e5e4;
   --muted: #a8a29e;
+  --faint: #57534e;
   --border: rgba(255, 255, 255, 0.08);
+  /* Bridge odds bands; keep in sync with BRIDGE_COLORS in main.ts. */
+  --likely: #f472b6;
+  --possible: #f9a8d4;
+  --unlikely: #71717a;
+  --rain: #60a5fa;
+  --up: #4ade80;
+  --down: #fb923c;
   color-scheme: dark;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -20,20 +28,26 @@ body {
   inset: 0;
 }
 
-.panel {
+/* Left column: title, then the collapsible sections. Scrolls on short screens. */
+#sidebar {
   position: absolute;
+  top: 12px;
   left: 12px;
+  width: 300px;
+  max-width: calc(100vw - 24px - 44px); /* room for the zoom buttons */
+  max-height: calc(100dvh - 24px - 20px); /* room for the attribution */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel {
   background: var(--panel-bg);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
   backdrop-filter: blur(6px);
-  max-width: calc(100vw - 24px - 48px);
   box-sizing: border-box;
-}
-
-header.panel {
-  top: 12px;
 }
 
 header h1 {
@@ -48,11 +62,250 @@ header h1 {
   color: var(--muted);
 }
 
-#legend {
-  bottom: 28px;
+.sections {
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
   font-size: 12px;
 }
 
+.sections details + details {
+  border-top: 1px solid var(--border);
+}
+
+.sections summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.sections summary::-webkit-details-marker {
+  display: none;
+}
+
+.sections summary::after {
+  content: "›";
+  margin-left: auto;
+  color: var(--faint);
+  transition: transform 0.15s;
+}
+
+.sections details[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.sections .label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  flex: none;
+}
+
+.sections .status {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sections .body {
+  padding: 0 14px 12px;
+}
+
+.line {
+  margin: 0 0 8px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.alert {
+  margin: 0 0 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(251, 146, 60, 0.15);
+  color: #fed7aa;
+  line-height: 1.4;
+}
+
+/* Weather: one column per hour. */
+.hours {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.hour .temp {
+  font-size: 11px;
+  color: var(--text);
+}
+
+.rain-bar {
+  position: relative;
+  width: 6px;
+  height: 24px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.rain-bar span {
+  position: absolute;
+  inset: auto 0 0;
+  background: var(--rain);
+  opacity: 0.55;
+}
+
+.hour.wet .rain-bar span {
+  opacity: 1;
+}
+
+.hour.wet .rain {
+  color: var(--rain);
+}
+
+.hour .windy {
+  color: var(--down);
+}
+
+/* Bridge and rider rows. */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.row-head .name {
+  font-weight: 500;
+}
+
+.row-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.sub {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.stale {
+  opacity: 0.55;
+}
+
+.chance {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.chance.likely {
+  color: var(--likely);
+}
+.chance.possible {
+  color: var(--possible);
+}
+.chance.unlikely {
+  color: var(--muted);
+}
+
+.chart {
+  display: block;
+  margin: 3px 0 1px;
+  overflow: visible;
+}
+
+.chart rect.likely {
+  fill: var(--likely);
+}
+.chart rect.possible {
+  fill: var(--possible);
+}
+.chart rect.unlikely {
+  fill: var(--unlikely);
+}
+.chart rect.now {
+  stroke: var(--text);
+  stroke-width: 1.2;
+}
+
+.chart text {
+  font-size: 7px;
+  fill: var(--muted);
+}
+
+.count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.count small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.change {
+  margin-left: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.change.up {
+  color: var(--up);
+}
+.change.down {
+  color: var(--down);
+}
+
+.spark {
+  flex: none;
+  overflow: visible;
+}
+
+.spark polyline {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.3;
+  stroke-linejoin: round;
+  opacity: 0.8;
+}
+
+/* Map key. */
 #legend h2 {
   margin: 8px 0 4px;
   font-size: 11px;
@@ -86,16 +339,27 @@ header h1 {
   flex: none;
 }
 
-.note {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 11px;
+.dot {
+  width: 8px;
+  height: 8px;
+  margin: 0 8px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  flex: none;
 }
 
 .maplibregl-popup-content {
   background: var(--panel-bg);
   color: var(--text);
   font-size: 12px;
+  line-height: 1.45;
+}
+
+.maplibregl-popup-content hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
 }
 
 .maplibregl-popup-tip {
@@ -109,4 +373,10 @@ header h1 {
   margin-top: 8px;
   color: var(--muted);
   cursor: pointer;
+}
+
+@media (max-width: 699px) {
+  #sidebar {
+    max-height: 62dvh;
+  }
 }

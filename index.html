@@ -3,16 +3,35 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Seattle's bike network with live car traffic on the streets bikes share." />
+    <meta name="description" content="Riding conditions for Seattle bike commuters: weather, drawbridges, rider counts, and car traffic on the streets bikes share." />
     <title>Seattle Bike Now</title>
   </head>
   <body>
     <div id="map"></div>
-    <header class="panel">
-      <h1>Seattle Bike Now</h1>
-      <p id="updated"></p>
-    </header>
-    <aside id="legend" class="panel"></aside>
+    <div id="sidebar">
+      <header class="panel">
+        <h1>Seattle Bike Now</h1>
+        <p id="updated"></p>
+      </header>
+      <div class="panel sections">
+        <details id="weather" data-open="desktop">
+          <summary><span class="label">Weather</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
+        <details id="bridges" data-open="desktop">
+          <summary><span class="label">Bridges</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
+        <details id="riders" data-open="desktop">
+          <summary><span class="label">Riders</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
+        <details id="legend">
+          <summary><span class="label">Map key</span><span class="status">bike lanes, traffic</span></summary>
+          <div class="body"></div>
+        </details>
+      </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "data": "tsx scripts/fetch-sdot.ts",
+    "data": "npm run data:sdot && npm run data:bridges && npm run data:counters",
+    "data:sdot": "tsx scripts/fetch-sdot.ts",
+    "data:bridges": "tsx scripts/fetch-bridges.ts",
+    "data:counters": "tsx scripts/fetch-counters.ts",
     "bench": "tsx scripts/bench-worker.ts",
     "dev:worker": "wrangler dev --test-scheduled",
     "deploy": "npm run build && wrangler deploy"
