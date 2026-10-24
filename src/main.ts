@@ -3,10 +3,21 @@
 import "./style.css";
 import { fetchClosures, type Closure } from "./closures";
 import { onCrashWindow } from "./crashes";
-import { renderBridges, renderClosures, renderCrashes, renderRiders, renderUnavailable, renderWeather } from "./conditions";
+import {
+  bridgeChance,
+  isStale,
+  renderBridges,
+  renderClosures,
+  renderCrashes,
+  renderRiders,
+  renderUnavailable,
+  renderVerdict,
+  renderWeather,
+} from "./conditions";
 import type { BikeNetwork, BridgesFile, CollisionsFile, CountersFile } from "./data-types";
-import { seattleDate } from "./seattle-time";
-import { fetchAlerts, fetchHourly } from "./weather";
+import { seattleDate, sunTimes } from "./seattle-time";
+import { verdict } from "./verdict";
+import { fetchAlerts, fetchHourly, type Alert, type Hour } from "./weather";
 
 const WEATHER_REFRESH_MS = 15 * 60_000;
 // Bridge odds change on the hour; re-check often enough to roll over promptly.
@@ -55,10 +66,24 @@ const getJson = <T,>(url: string): Promise<T> =>
   });
 
 const network = getJson<BikeNetwork>("/data/bike-network.geojson");
+// What the one-line answer is built from; it re-renders as each piece arrives.
+const latest: { hours: Hour[]; alerts: Alert[]; bridges: BridgesFile | null } = { hours: [], alerts: [], bridges: null };
+function updateVerdict() {
+  const now = new Date();
+  const { sunrise, sunset } = sunTimes(47.62, -122.35, now);
+  const live = latest.bridges?.bridges.filter((b) => !isStale(b, latest.bridges!)) ?? [];
+  renderVerdict(
+    verdict({ now, hours: latest.hours, alerts: latest.alerts, sunrise, sunset, bridges: live.map((b) => ({ name: b.name, chance: bridgeChance(b, now) })) }),
+  );
+}
+setInterval(updateVerdict, BRIDGE_REFRESH_MS);
+
 const bridges = getJson<BridgesFile>("/data/bridges.json")
   .then((f) => {
     renderBridges(f);
     setInterval(() => renderBridges(f), BRIDGE_REFRESH_MS);
+    latest.bridges = f;
+    updateVerdict();
     return f;
   })
   .catch((err) => {
@@ -105,6 +130,8 @@ async function loadWeather() {
   try {
     const [hours, alerts] = await Promise.all([fetchHourly(), fetchAlerts().catch(() => [])]);
     renderWeather(hours, alerts);
+    Object.assign(latest, { hours, alerts });
+    updateVerdict();
   } catch (err) {
     console.warn("weather unavailable", err);
     renderUnavailable("weather", "the forecast");

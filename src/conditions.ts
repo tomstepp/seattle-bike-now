@@ -4,6 +4,7 @@ import { daysThisWeek, hoursOn, type Closure } from "./closures";
 import { CRASH_WINDOWS, crashesFor, crashWindow, setCrashWindow, type CrashWindow } from "./crashes";
 import type { BridgeStats, BridgesFile, CollisionsFile, CounterStats, CountersFile } from "./data-types";
 import { esc, fmtInt, streetCase } from "./format";
+import type { Verdict } from "./verdict";
 import { formatDay, formatDayYear, formatTime, hourLabel, seattleHour, seattleIsWeekend, shortHour, sunTimes } from "./seattle-time";
 import { RAIN_LIKELY, WINDY_MPH, type Alert, type Hour } from "./weather";
 
@@ -84,7 +85,7 @@ export function renderWeather(hours: Hour[], alerts: Alert[]) {
 export const bridgeChance = (b: BridgeStats, d = new Date()) =>
   (seattleIsWeekend(d) ? b.weekend : b.weekday)[seattleHour(d)];
 
-const isStale = (b: BridgeStats, file: BridgesFile) =>
+export const isStale = (b: BridgeStats, file: BridgesFile) =>
   (Date.parse(file.generatedAt) - Date.parse(`${b.lastLogged}T23:59:00Z`)) / 86_400_000 > STALE_DAYS;
 
 export function chanceClass(p: number) {
@@ -274,4 +275,20 @@ export function renderCrashes(file: CollisionsFile) {
       window.dispatchEvent(new CustomEvent("focus-map", { detail: { lng: Number(b.dataset.lng), lat: Number(b.dataset.lat) } })),
     ),
   );
+}
+
+// ---------- Should I ride? ----------
+
+export function renderVerdict(v: Verdict | null) {
+  const line = document.getElementById("verdict")!;
+  const badge = document.getElementById("verdict-badge")!;
+  if (!v) {
+    line.textContent = "";
+    badge.hidden = true;
+    return;
+  }
+  line.dataset.tone = badge.dataset.tone = v.tone;
+  line.innerHTML = `<strong>${esc(v.headline)}</strong>${v.details.length ? ` · ${esc(v.details.join(" · "))}` : ""}`;
+  badge.textContent = v.short;
+  badge.hidden = false;
 }

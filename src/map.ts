@@ -391,10 +391,9 @@ async function applyToggle(t: Toggle, on: boolean) {
     }
   }
   for (const id of t.layers) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", on ? "visible" : "none");
-  document.getElementById("hill-key")?.toggleAttribute("hidden", !(t.key === "hills" ? on : isOn("hills")));
 }
 
-const isOn = (key: string) => (document.querySelector<HTMLInputElement>(`#legend [data-toggle="${key}"]`)?.checked ?? false);
+const isOn = (key: string) => (document.querySelector<HTMLInputElement>(`#layers [data-toggle="${key}"]`)?.checked ?? false);
 
 const popup = (lngLat: maplibregl.LngLatLike, html: string) =>
   new maplibregl.Popup({ closeButton: false, maxWidth: "260px" }).setLngLat(lngLat).setHTML(html).addTo(map);
@@ -544,41 +543,68 @@ function addRawTrafficLayer() {
   );
 }
 
-function renderLegend() {
-  const row = (s: FacilityStyle) => {
-    const dash = s.dash ? `background: repeating-linear-gradient(90deg, ${s.color} 0 6px, transparent 6px 10px)` : `background: ${s.color}`;
-    return `<li><span class="swatch" style="${dash}"></span>${s.label}</li>`;
-  };
-  const dot = (color: string, ring = false) =>
-    `<span class="dot" style="${ring ? `border-color:${color}` : `background:${color}`}"></span>`;
+const keyRow = (s: FacilityStyle) => {
+  const dash = s.dash ? `background: repeating-linear-gradient(90deg, ${s.color} 0 6px, transparent 6px 10px)` : `background: ${s.color}`;
+  return `<li><span class="swatch" style="${dash}"></span>${s.label}</li>`;
+};
+
+// What each layer looks like, shown in the map key only while that layer is on.
+const LAYER_KEYS: Record<string, () => string> = {
+  closures: () => `<li><span class="swatch wide" style="background:${CLOSURE_COLOR}"></span>Street closed today</li>
+    <li><span class="swatch wide" style="background:${CLOSURE_COLOR}; opacity:0.3"></span>Closed later this week</li>`,
+  crashes: () => `<li>${swatchDot(CRASH_COLOR)}Bike crashes (bigger = more)</li>`,
+  bridges: () => `<li>${swatchDot(BRIDGE_COLORS.likely)}Drawbridge, opening likely this hour</li>
+    <li>${swatchDot(BRIDGE_COLORS.unlikely)}Drawbridge, opening unlikely</li>`,
+  counters: () => `<li>${swatchDot(COUNTER_COLOR, true)}Bike counter</li>`,
+  racks: () => `<li>${swatchDot(RACK_COLOR)}Bike rack</li>`,
+  repair: () => `<li>${swatchDot(REPAIR_COLOR)}Repair stand</li>`,
+};
+
+/** Map key: lanes and traffic always, plus whichever layers are on. Re-rendered on every switch. */
+function renderKey() {
+  const on = TOGGLES.filter((t) => isOn(t.key));
+  const extras = on.map((t) => LAYER_KEYS[t.key]?.() ?? "").join("");
+  const hills = on.some((t) => t.key === "hills");
   document.querySelector("#legend .body")!.innerHTML = `
+    ${
+      hills
+        ? `<h2>Hills (bike lanes by grade)</h2>
+           <ul>${SLOPES.map((x) => keyRow({ label: x.label, color: x.color })).join("")}</ul>
+           <p class="note">Each block's average grade, from SDOT. Trails aren't graded and keep their lane color.</p>`
+        : ""
+    }
     <h2>Separated from cars</h2>
-    <ul>${Object.values(SEPARATED).map((s) => row(s!)).join("")}</ul>
+    <ul>${Object.values(SEPARATED).map((s) => keyRow(s!)).join("")}</ul>
     <h2>Shared with cars</h2>
-    <ul>${Object.values(SHARED).map((s) => row(s!)).join("")}</ul>
-    <h2>Car traffic</h2>
-    <ul>${TRAFFIC.map((t) => row({ label: t.label, color: t.color })).join("")}</ul>
+    <ul>${Object.values(SHARED).map((s) => keyRow(s!)).join("")}</ul>
+    <h2>Car traffic on shared lanes</h2>
+    <ul>${TRAFFIC.map((t) => keyRow({ label: t.label, color: t.color })).join("")}</ul>
     <h2>Also on the map</h2>
     <ul>
-      <li>${dot(BRIDGE_COLORS.likely)}Drawbridge, opening likely this hour</li>
-      <li>${dot(BRIDGE_COLORS.unlikely)}Drawbridge, opening unlikely</li>
+      ${extras}
       <li><span class="swatch" style="background: repeating-linear-gradient(90deg, ${CITY_LIMITS_COLOR} 0 8px, transparent 8px 12px); opacity: 0.7"></span>Seattle city limits</li>
     </ul>
-    <h2>Show on map</h2>
+    <p class="note">Seattle city limits only. Data: SDOT, TomTom, NWS, OpenStreetMap.</p>`;
+}
+
+/** Layers: one switch per optional layer. */
+function renderLayers() {
+  const status = () => {
+    const n = TOGGLES.filter((t) => isOn(t.key)).length;
+    document.querySelector("#layers .status")!.textContent = `${n} of ${TOGGLES.length} on`;
+  };
+  document.querySelector("#layers .body")!.innerHTML = `
     <ul class="toggles">
       ${TOGGLES.map((t) => `<li><label class="toggle"><input type="checkbox" data-toggle="${t.key}"${toggleOn(t) ? " checked" : ""}>${t.swatch}${t.label}</label></li>`).join("")}
     </ul>
-    <div id="hill-key" hidden>
-      <h2>Hills</h2>
-      <ul>${SLOPES.map((x) => row({ label: x.label, color: x.color })).join("")}</ul>
-      <p class="note">Each block's average grade, from SDOT. Trails aren't graded.</p>
-    </div>
     ${DEBUG_TOMTOM_KEY ? `<label class="toggle"><input type="checkbox" id="raw-toggle"> Show all TomTom traffic (dev)</label>` : ""}
-    <p class="note">Seattle city limits only. Data: SDOT, TomTom, NWS.</p>`;
-  for (const input of document.querySelectorAll<HTMLInputElement>("#legend [data-toggle]")) {
+    <p class="note">Racks, repair stands and hills load when first turned on.</p>`;
+  for (const input of document.querySelectorAll<HTMLInputElement>("#layers [data-toggle]")) {
     const t = TOGGLES.find((x) => x.key === input.dataset.toggle)!;
     input.addEventListener("change", () => {
       applyToggle(t, input.checked);
+      renderKey();
+      status();
       try {
         localStorage.setItem(`layer:${t.key}`, input.checked ? "1" : "0");
       } catch {}
@@ -587,6 +613,7 @@ function renderLegend() {
   document.getElementById("raw-toggle")?.addEventListener("change", (e) => {
     map.setLayoutProperty("traffic-raw", "visibility", (e.target as HTMLInputElement).checked ? "visible" : "none");
   });
+  status();
 }
 
 export interface MapInputs {
@@ -616,7 +643,8 @@ export function startMap(inputs: MapInputs) {
     const [crashFile, closureList] = await Promise.all([inputs.collisions, inputs.closures]);
     if (crashFile) addCrashLayer(crashFile);
     if (closureList) addClosureLayer(closureList);
-    renderLegend();
+    renderLayers();
+    renderKey();
     for (const t of TOGGLES) applyToggle(t, toggleOn(t));
     await loadTraffic();
     setInterval(loadTraffic, REFRESH_MS);

@@ -22,9 +22,12 @@
         <path class="close-icon" d="M5 5l10 10M15 5L5 15" />
       </svg>
     </button>
+    <!-- Phones: the answer stays visible next to the menu button. -->
+    <p id="verdict-badge" class="panel verdict-badge" hidden></p>
     <div id="sidebar">
       <header class="panel">
         <h1>Seattle Bike Now</h1>
+        <p id="verdict" class="verdict" aria-live="polite"></p>
         <p id="updated"></p>
       </header>
       <div class="panel sections">
@@ -48,8 +51,12 @@
           <summary><span class="label">Crashes</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>
+        <details id="layers">
+          <summary><span class="label">Layers</span><span class="status">loading…</span></summary>
+          <div class="body"></div>
+        </details>
         <details id="legend">
-          <summary><span class="label">Map key</span><span class="status">layers on and off</span></summary>
+          <summary><span class="label">Map key</span><span class="status">what the colors mean</span></summary>
           <div class="body"></div>
         </details>
       </div>
