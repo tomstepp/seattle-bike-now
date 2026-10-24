@@ -17,6 +17,7 @@ import {
   sparkline,
 } from "./conditions";
 import type { BridgesFile, CountersFile } from "./data-types";
+import { initLocate } from "./locate";
 import { formatDay } from "./seattle-time";
 import { fetchAlerts, fetchHourly } from "./weather";
 
@@ -45,6 +46,7 @@ const map = new maplibregl.Map({
   attributionControl: { compact: true },
 });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+initLocate(map);
 if (import.meta.env.DEV) Object.assign(window, { map });
 
 const lineWidth: ExpressionSpecification = ["interpolate", ["linear"], ["zoom"], 11, 1.5, 15, 4, 18, 8];
