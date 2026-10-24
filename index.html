@@ -8,21 +8,27 @@
   </head>
   <body>
     <div id="map"></div>
+    <button id="menu-toggle" class="panel" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+      <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+        <path class="open-icon" d="M3 5h14M3 10h14M3 15h14" />
+        <path class="close-icon" d="M5 5l10 10M15 5L5 15" />
+      </svg>
+    </button>
     <div id="sidebar">
       <header class="panel">
         <h1>Seattle Bike Now</h1>
         <p id="updated"></p>
       </header>
       <div class="panel sections">
-        <details id="weather" data-open="desktop">
+        <details id="weather">
           <summary><span class="label">Weather</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>
-        <details id="bridges" data-open="desktop">
+        <details id="bridges">
           <summary><span class="label">Bridges</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>
-        <details id="riders" data-open="desktop">
+        <details id="riders">
           <summary><span class="label">Riders</span><span class="status">loading…</span></summary>
           <div class="body"></div>
         </details>

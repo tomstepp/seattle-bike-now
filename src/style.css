@@ -375,8 +375,48 @@ header h1 {
   cursor: pointer;
 }
 
+#menu-toggle {
+  display: none;
+}
+
+/* Phones: menu button top-left; the sidebar opens below it. */
 @media (max-width: 699px) {
+  #menu-toggle {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  #menu-toggle path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  #menu-toggle .close-icon,
+  .menu-open #menu-toggle .open-icon {
+    display: none;
+  }
+
+  .menu-open #menu-toggle .close-icon {
+    display: inline;
+  }
+
   #sidebar {
-    max-height: 62dvh;
+    display: none;
+    top: 64px;
+    max-height: calc(100dvh - 64px - 36px);
+  }
+
+  .menu-open #sidebar {
+    display: flex;
   }
 }

@@ -308,23 +308,35 @@ function renderLegend() {
   });
 }
 
-// Sections marked data-open="desktop" start open on wide screens; after that,
-// each viewer's own open/closed choice is remembered.
+// Sections start collapsed; each viewer's own open/closed choice is remembered.
 function initSections() {
-  const wide = matchMedia("(min-width: 700px)").matches;
   for (const el of document.querySelectorAll<HTMLDetailsElement>(".sections details")) {
-    let saved: string | null = null;
+    const key = `section-open:${el.id}`;
     try {
-      saved = localStorage.getItem(`open:${el.id}`);
+      el.open = localStorage.getItem(key) === "1";
     } catch {}
-    el.open = saved !== null ? saved === "1" : wide && el.dataset.open === "desktop";
     el.addEventListener("toggle", () => {
       try {
-        localStorage.setItem(`open:${el.id}`, el.open ? "1" : "0");
+        localStorage.setItem(key, el.open ? "1" : "0");
       } catch {}
     });
   }
 }
+
+// Phones: the sidebar hides behind a menu button so the map gets the screen.
+function initMenu() {
+  const button = document.getElementById("menu-toggle")!;
+  const setOpen = (open: boolean) => {
+    document.body.classList.toggle("menu-open", open);
+    button.setAttribute("aria-expanded", String(open));
+    button.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+  };
+  button.addEventListener("click", () => setOpen(!document.body.classList.contains("menu-open")));
+  document.addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
+  // Tapping the map closes the menu, so popups aren't hidden behind it.
+  map.on("click", () => setOpen(false));
+}
+initMenu();
 initSections();
 
 const getJson = <T,>(url: string): Promise<T> =>
