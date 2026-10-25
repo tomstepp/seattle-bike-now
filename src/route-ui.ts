@@ -1,11 +1,14 @@
 // The Route section: pick a start and end (search, current location, or tap the
 // map), get up to three bike routes from OpenRouteService, judge each with this
-// site's data, and take the chosen one to a navigation app.
+// site's data, and take the chosen one to a navigation app. A saved commute
+// makes the daily ride one tap.
 import * as maplibregl from "maplibre-gl";
+import { commuteEnds, directionFor, directionOf, directionParam, loadCommute, saveCommute, type Direction } from "./commute";
 import { esc, streetCase } from "./format";
 import { fetchRoutes, nameOf, routingAvailable, searchPlaces, type Route } from "./ors";
 import { avoidAreas, googleMapsUrl, toGpx } from "./route-export";
 import { labelRoutes, routeCost, scoreRoute, type RouteScore, type ScoreContext } from "./route-score";
+import { seattleHour } from "./seattle-time";
 
 type LngLat = [number, number];
 
@@ -52,6 +55,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
   }
 
   body.innerHTML = `
+    <div class="commute"></div>
     <div class="route-form">
       <div class="place" data-end="from">
         <span class="pin start"></span>
@@ -68,6 +72,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
     </div>
     <div id="route-results"></div>`;
   const results = body.querySelector<HTMLElement>("#route-results")!;
+  const commuteBar = body.querySelector<HTMLElement>(".commute")!;
   const inputs = {
     from: body.querySelector<HTMLInputElement>('[data-end="from"] input')!,
     to: body.querySelector<HTMLInputElement>('[data-end="to"] input')!,
@@ -82,6 +87,8 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
   let selected = 0;
   let showSteps = false;
   let request = 0;
+  let finding = false;
+  let commute = loadCommute();
 
   // ---------- Map layers ----------
 
@@ -134,6 +141,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
         if (!name || ends[which] !== end) return;
         end.label = name;
         inputs[which].value = name;
+        renderCommute();
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(ends));
         } catch {}
@@ -146,6 +154,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
     inputs[which].value = end?.label ?? "";
     if (end) markers[which].setLngLat(end.at).addTo(map);
     else markers[which].remove();
+    renderCommute();
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(ends));
     } catch {}
@@ -181,6 +190,45 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
     const { from, to } = ends;
     setEnd("from", to, { route: false });
     setEnd("to", from);
+  });
+
+  // ---------- Saved commute ----------
+
+  // Saved: "To work" / "To home" (the current one highlighted). Not saved yet: offer it once both ends are set.
+  function renderCommute() {
+    if (commute) {
+      const now = directionOf(commute, ends.from, ends.to);
+      commuteBar.innerHTML = `<div class="segmented">${(["work", "home"] as const)
+        .map((d) => `<button type="button" data-go="${d}" aria-pressed="${now === d}">To ${d}</button>`)
+        .join("")}</div>
+        <button type="button" class="icon" data-forget title="Forget my commute" aria-label="Forget my commute">×</button>`;
+    } else if (ends.from && ends.to) {
+      commuteBar.innerHTML = `<button type="button" class="save-commute" data-save>☆ Save as my commute <span class="sub">(start is home)</span></button>`;
+    } else commuteBar.innerHTML = "";
+  }
+
+  function go(d: Direction) {
+    if (!commute) return;
+    const { from, to } = commuteEnds(commute, d);
+    setEnd("from", { ...from }, { route: false });
+    setEnd("to", { ...to });
+  }
+
+  commuteBar.addEventListener("click", (e) => {
+    const b = (e.target as HTMLElement).closest("button");
+    if (!b) return;
+    if (b.dataset.go) go(b.dataset.go as Direction);
+    else if (b.hasAttribute("data-save") && ends.from && ends.to) {
+      // "My location" means nothing later; name the saved ends instead.
+      const keep = (end: End, name: string) => ({ label: end.label === "My location" ? name : end.label, at: end.at });
+      commute = { home: keep(ends.from, "Home"), work: keep(ends.to, "Work") };
+      saveCommute(commute);
+      renderCommute();
+    } else if (b.hasAttribute("data-forget") && confirm("Forget your saved commute?")) {
+      commute = null;
+      saveCommute(null);
+      renderCommute();
+    }
   });
 
   // Search-as-you-type suggestions.
@@ -228,6 +276,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
       return;
     }
     const mine = ++request;
+    finding = true;
     results.innerHTML = `<p class="note">Finding routes…</p>`;
     status.textContent = "finding routes…";
     try {
@@ -271,6 +320,8 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
         /HTTP 4\d\d/.test(String(err)) ? " between those points" : " right now"
       }. Try moving a pin.</p>`;
       status.textContent = "no route";
+    } finally {
+      if (mine === request) finding = false;
     }
   }
 
@@ -387,13 +438,25 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
 
   status.textContent = "plan a ride";
   // Bring back the last start and end; route once the section is opened, to save the daily quota.
+  // With a saved commute, the last commute ride flips to this time of day's direction,
+  // and a home-screen shortcut (?go=work, ?go=home) picks one and opens it.
+  const asked = directionParam(location.search);
+  if (asked) history.replaceState(null, "", location.pathname + location.hash);
+  let saved: { from: End | null; to: End | null } | null = null;
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as typeof ends | null;
-    if (saved?.from) setEnd("from", saved.from, { route: false });
-    if (saved?.to) setEnd("to", saved.to, { route: false });
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
   } catch {}
-  const routeIfReady = () => section.open && ends.from && ends.to && !routes.length && void findRoutes();
+  if (commute) {
+    const wasCommute = !saved?.from && !saved?.to ? true : directionOf(commute, saved.from, saved.to) !== null;
+    const d = asked ?? (wasCommute ? directionFor(seattleHour()) : null);
+    if (d) saved = commuteEnds(commute, d);
+  }
+  if (saved?.from) setEnd("from", { ...saved.from }, { route: false });
+  if (saved?.to) setEnd("to", { ...saved.to }, { route: false });
+  renderCommute();
+  const routeIfReady = () => section.open && ends.from && ends.to && !routes.length && !finding && void findRoutes();
   section.addEventListener("toggle", routeIfReady);
+  if (asked && commute) openPanel();
   routeIfReady();
 
   return { picking: () => section.open && !(ends.from && ends.to) };

@@ -398,6 +398,35 @@ header h1 {
 }
 
 /* Route: start/end inputs, then one card per route. */
+.commute {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.commute:empty {
+  display: none;
+}
+
+.commute .segmented {
+  flex: 1;
+  margin: 0;
+}
+
+.save-commute {
+  all: unset;
+  padding: 2px 0;
+  color: var(--rain);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.save-commute:hover,
+.save-commute:focus-visible {
+  text-decoration: underline;
+}
+
 .route-form {
   display: flex;
   flex-direction: column;

@@ -6,7 +6,7 @@ Riding conditions for Seattle bike commuters: weather, drawbridge odds, street c
 
 ```bash
 npm install
-npm run data        # bike network, bridge odds, rider counts -> public/data/ (+ worker/data/)
+npm run data        # bike network, bridge odds, rider counts -> public/data/
 npm run dev         # Vite on :5173
 ```
 
@@ -16,19 +16,16 @@ Keys, in `.env` (gitignored; see `.env.example`):
 
 Both are bundled into the page by design.
 
-Tests: `npm test` (Vitest: traffic matching, bridge and counter stats, Seattle time and area, the worker's handlers). `npm run deploy` runs them first.
-
-Measure the CPU cost of one traffic refresh with `npm run bench`.
+Tests: `npm test` (Vitest: traffic matching, bridge and counter stats, Seattle time and area, route scoring and export). Every deploy runs them first.
 
 ## Architecture
 
 A static site; everything live is fetched by the page itself.
 - **Traffic:** every 10 minutes while the page is visible, it fetches the ~93 z14 TomTom flow tiles that touch a shared bike lane, matches them to lanes ([src/match.ts](src/match.ts), [src/traffic.ts](src/traffic.ts)) and colors the lanes. The TomTom key ships in the page, so restrict it to the site's domain in TomTom's dashboard.
 - **Routes:** [OpenRouteService](https://openrouteservice.org) returns up to three bike routes with turn-by-turn steps ([src/ors.ts](src/ors.ts)). [src/route-score.ts](src/route-score.ts) judges each with this site's data (protected share, steep blocks, construction, closures, crashes, slow traffic, drawbridges); if every route hits a closed lane, it asks once more with those stretches as avoid areas. Routes export as GPX or a Google Maps link ([src/route-export.ts](src/route-export.ts)).
+- **Saved commute and home screen:** home and work are kept on the device ([src/commute.ts](src/commute.ts)); the Route panel offers "To work" before noon and "To home" after. [public/manifest.webmanifest](public/manifest.webmanifest) makes the site installable, with "Ride to work" and "Ride home" shortcuts (`?go=work`, `?go=home`).
 - **Weather, closures, construction:** NWS and SDOT, fetched live by the page.
 - **Bridges, counters, crashes, racks, repair stands, bike network:** static files in `public/data/`, rebuilt by `npm run data`.
-
-The [worker/](worker/) folder is an optional Cloudflare Worker that does the traffic refresh server-side on a cron; the site no longer needs it.
 
 ## Data
 

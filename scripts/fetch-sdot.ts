@@ -2,7 +2,6 @@
 // normalized GeoJSON for the map: public/data/bike-network.geojson.
 // Raw responses are kept in data/raw/ (gitignored) for debugging.
 import { mkdir, writeFile } from "node:fs/promises";
-import { TILE_ZOOM, tilesFor } from "../src/tiles";
 
 const SERVICE =
   "https://services.arcgis.com/ZOyb2t4B0UYuYNYH/arcgis/rest/services/SDOT_Bike_Facilities/FeatureServer";
@@ -177,19 +176,6 @@ async function main() {
     }),
   );
   console.log(`wrote ${limits.features.length} city limit lines`);
-
-  // Worker input: shared segments only, plus the TomTom tiles they touch, so
-  // each cron run fetches only tiles that can color something.
-  const shared = out
-    .filter((f) => !f.properties.separated)
-    .map((f) => ({ id: f.properties.id as string, coords: f.geometry!.coordinates as [number, number][] }));
-  const tiles = tilesFor(shared.map((x) => x.coords));
-  await mkdir("worker/data", { recursive: true });
-  await writeFile(
-    "worker/data/shared-segments.json",
-    JSON.stringify({ zoom: TILE_ZOOM, tiles, segments: shared }),
-  );
-  console.log(`worker: ${shared.length} shared segments across ${tiles.length} z${TILE_ZOOM} tiles`);
 }
 
 main().catch((err) => {

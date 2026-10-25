@@ -8,17 +8,14 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p worker",
+    "typecheck": "tsc --noEmit",
     "data": "npm run data:sdot && npm run data:bridges && npm run data:counters && npm run data:collisions && npm run data:racks && npm run data:repair",
     "data:sdot": "tsx scripts/fetch-sdot.ts",
     "data:bridges": "tsx scripts/fetch-bridges.ts",
     "data:counters": "tsx scripts/fetch-counters.ts",
     "data:collisions": "tsx scripts/fetch-collisions.ts",
     "data:racks": "tsx scripts/fetch-racks.ts",
-    "data:repair": "tsx scripts/fetch-repair.ts",
-    "bench": "tsx scripts/bench-worker.ts",
-    "dev:worker": "wrangler dev --test-scheduled",
-    "deploy": "npm test && npm run build && wrangler deploy"
+    "data:repair": "tsx scripts/fetch-repair.ts"
   },
   "dependencies": {
     "@mapbox/vector-tile": "3.0.0",
@@ -26,12 +23,10 @@
     "pbf": "5.1.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20261009.1",
     "@types/node": "24.19.2",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.4",
-    "vitest": "^5.0.3",
-    "wrangler": "4.149.0"
+    "vitest": "^5.0.3"
   }
 }

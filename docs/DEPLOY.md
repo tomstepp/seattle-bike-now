@@ -73,7 +73,3 @@ Both keys ship inside the page; that's how a static site calls these services.
 - **If a deploy fails:** the Actions tab shows which step. Tests run before every
   build, so a failing test stops a broken deploy.
 
-## Not used
-
-The `worker/` folder and `wrangler.jsonc` are an earlier Cloudflare Worker setup
-that refreshed traffic on a server. The site doesn't need them.
