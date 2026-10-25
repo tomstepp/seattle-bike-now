@@ -11,5 +11,5 @@
     "resolveJsonModule": true,
     "isolatedModules": true
   },
-  "include": [".", "../src/match.ts"]
+  "include": [".", "../src/match.ts", "../src/traffic.ts"]
 }

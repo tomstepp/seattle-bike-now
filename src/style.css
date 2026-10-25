@@ -397,6 +397,204 @@ header h1 {
   margin-top: 12px;
 }
 
+/* Route: start/end inputs, then one card per route. */
+.route-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.place {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.place input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font: inherit;
+}
+
+.place input:focus {
+  outline: 2px solid var(--rain);
+  outline-offset: -1px;
+}
+
+.pin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.pin.start {
+  background: #22c55e;
+}
+.pin.end {
+  background: #ef4444;
+}
+
+.icon {
+  all: unset;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.icon:hover,
+.icon:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.suggest {
+  position: absolute;
+  top: 100%;
+  left: 16px;
+  right: 34px;
+  z-index: 2;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #18181b;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+}
+
+.suggest button,
+.steps button {
+  all: unset;
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.suggest button:hover,
+.suggest button:focus-visible,
+.steps button:hover,
+.steps button:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.route-card {
+  margin: 0 0 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.route-card.selected {
+  border-color: rgba(248, 250, 252, 0.45);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.route-head {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.route-head:focus-visible {
+  outline: 2px solid var(--rain);
+}
+
+.route-head .when {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Share of the route on protected lanes (blue), shared lanes (grey), and the rest. */
+.lane-bar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+}
+.lane-bar .p {
+  background: #818cf8;
+}
+.lane-bar .s {
+  background: #a8a29e;
+}
+
+.issues {
+  margin: 6px 0 0;
+  padding: 0 0 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.issues .bad {
+  color: var(--poor);
+}
+.issues .warn {
+  color: var(--fair);
+}
+
+.sub.ok {
+  margin: 6px 0 0;
+}
+
+.route-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.route-actions button,
+.route-actions a {
+  all: unset;
+  flex: 1;
+  text-align: center;
+  padding: 5px 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.route-actions button:hover,
+.route-actions a:hover,
+.route-actions button:focus-visible,
+.route-actions a:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.steps {
+  margin: 8px 0 0;
+  padding: 0 0 0 18px;
+  font-size: 12px;
+}
+
+.steps button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px;
+}
+
 /* Crash time span: 3 months / 1 year / 5 years. */
 .segmented {
   display: flex;

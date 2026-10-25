@@ -56,9 +56,9 @@ function initMenu() {
   };
   button.addEventListener("click", () => setOpen(!document.body.classList.contains("menu-open")));
   document.addEventListener("keydown", (e) => e.key === "Escape" && setOpen(false));
-  return () => setOpen(false);
+  return { close: () => setOpen(false), open: () => setOpen(true) };
 }
-const closeMenu = initMenu();
+const menu = initMenu();
 initSections();
 
 const getJson = <T,>(url: string): Promise<T> =>
@@ -149,4 +149,20 @@ loadWeather();
 setInterval(loadWeather, WEATHER_REFRESH_MS);
 
 // Tapping the map closes the phone menu, so popups aren't hidden behind it.
-import("./map").then(({ startMap }) => startMap({ network, bridges, counters, collisions, closures, construction, onMapClick: closeMenu }));
+import("./map").then(({ startMap }) => startMap({
+    network,
+    bridges,
+    counters,
+    collisions,
+    closures,
+    construction,
+    onMapClick: () => {
+      // Keep the menu open while placing route pins, so the route shows up next to them.
+      if (!(document.getElementById("route") as HTMLDetailsElement).open) menu.close();
+    },
+    showRoutes: () => {
+      const route = document.getElementById("route") as HTMLDetailsElement;
+      route.open = true;
+      menu.open();
+    },
+  }));

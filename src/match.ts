@@ -176,3 +176,21 @@ export function bestSegment(index: SegmentIndex, lines: LngLat[][], minSamples =
   for (const [id, n] of counts) if (n > most) [best, most] = [id, n];
   return best;
 }
+
+/** For each 10 m step along a line: the same-direction segment within 15 m, or null. */
+export function segmentsAlong(index: SegmentIndex, coords: LngLat[]): (string | null)[] {
+  return sample(coords).map(({ p, angle }) => index.nearest(p, angle));
+}
+
+/** Shortest distance in meters from a point to a line. */
+export function distanceToLine(point: LngLat, coords: LngLat[]): number {
+  const p = project(point);
+  let best = Infinity;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [a, b] = [project(coords[i]), project(coords[i + 1])];
+    best = Math.min(best, distToEdge(p, { segId: "", a, b, angle: 0 }));
+  }
+  return best;
+}
+
+export const SAMPLE_METERS = SAMPLE_M;

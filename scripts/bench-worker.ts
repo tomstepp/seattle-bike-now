@@ -3,7 +3,7 @@
 // then times index build + decode + match. Usage: npm run bench (needs .dev.vars).
 import { readFile } from "node:fs/promises";
 import { SegmentIndex } from "../src/match";
-import { buildSnapshot, fetchTiles, type SharedSegments } from "../worker/traffic";
+import { buildSnapshot, fetchTiles, type SharedSegments } from "../src/traffic";
 
 const RUNS = 20;
 

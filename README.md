@@ -7,25 +7,28 @@ Riding conditions for Seattle bike commuters: weather, drawbridge odds, street c
 ```bash
 npm install
 npm run data        # bike network, bridge odds, rider counts -> public/data/ (+ worker/data/)
-npm run build       # the worker serves dist/
-npm run dev:worker  # Cloudflare Worker on :8787 (cron + /api/traffic)
-npm run dev         # Vite on :5173, proxies /api to the worker
+npm run dev         # Vite on :5173
 ```
 
-Secrets, both gitignored:
-- `.dev.vars`: `TOMTOM_KEY=...` for the worker.
-- `.env`: optional `VITE_TOMTOM_KEY=...` turns on a dev-only "show all TomTom traffic" toggle. It is never read in production builds.
+Keys, in `.env` (gitignored; see `.env.example`):
+- `VITE_TOMTOM_KEY`: live traffic. Also turns on a dev-only "show all TomTom traffic" toggle.
+- `VITE_ORS_KEY`: bike routes and place search (free OpenRouteService account).
+
+Both are bundled into the page by design.
 
 Tests: `npm test` (Vitest: traffic matching, bridge and counter stats, Seattle time and area, the worker's handlers). `npm run deploy` runs them first.
 
-Trigger a refresh locally with `curl "localhost:8787/__scheduled?cron=*/10+*+*+*+*"`, and measure CPU per refresh with `npm run bench`.
+Measure the CPU cost of one traffic refresh with `npm run bench`.
 
 ## Architecture
 
-One Cloudflare Worker ([worker/index.ts](worker/index.ts)):
-- **Cron, every 10 min:** fetches the 93 z14 TomTom flow tiles that touch a shared bike segment, matches them ([src/match.ts](src/match.ts)), and writes one snapshot to KV.
-- **`/api/traffic`:** serves that snapshot, so visitor traffic never multiplies TomTom calls.
-- **Everything else:** static assets from `dist/`.
+A static site; everything live is fetched by the page itself.
+- **Traffic:** every 10 minutes while the page is visible, it fetches the ~93 z14 TomTom flow tiles that touch a shared bike lane, matches them to lanes ([src/match.ts](src/match.ts), [src/traffic.ts](src/traffic.ts)) and colors the lanes. The TomTom key ships in the page, so restrict it to the site's domain in TomTom's dashboard.
+- **Routes:** [OpenRouteService](https://openrouteservice.org) returns up to three bike routes with turn-by-turn steps ([src/ors.ts](src/ors.ts)). [src/route-score.ts](src/route-score.ts) judges each with this site's data (protected share, steep blocks, construction, closures, crashes, slow traffic, drawbridges); if every route hits a closed lane, it asks once more with those stretches as avoid areas. Routes export as GPX or a Google Maps link ([src/route-export.ts](src/route-export.ts)).
+- **Weather, closures, construction:** NWS and SDOT, fetched live by the page.
+- **Bridges, counters, crashes, racks, repair stands, bike network:** static files in `public/data/`, rebuilt by `npm run data`.
+
+The [worker/](worker/) folder is an optional Cloudflare Worker that does the traffic refresh server-side on a cron; the site no longer needs it.
 
 ## Data
 

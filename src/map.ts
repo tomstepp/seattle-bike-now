@@ -5,10 +5,13 @@ import * as maplibregl from "maplibre-gl";
 import type { ExpressionSpecification } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url";
-import type { TrafficSnapshot } from "../worker/traffic";
+import { SegmentIndex } from "./match";
+import { initRoutes, type RouteContext } from "./route-ui";
+import { TILE_ZOOM, tilesFor } from "./tiles";
+import { buildSnapshot, fetchTiles, type SharedSegments, type TrafficSnapshot } from "./traffic";
 import { daysThisWeek, hoursOn, type Closure } from "./closures";
 import type { Construction } from "./construction";
-import { bridgeChance, bridgeChart, chanceClass, changeText, severityText, sparkline } from "./conditions";
+import { bridgeChance, bridgeChart, chanceClass, changeText, isStale, severityText, sparkline } from "./conditions";
 import { crashesFor, crashWindow, onCrashWindow } from "./crashes";
 import type { BikeNetwork, BridgesFile, CollisionSpot, CollisionsFile, CountersFile, RacksFile, RepairFile } from "./data-types";
 import { esc, streetCase } from "./format";
@@ -18,10 +21,13 @@ import { initLocate } from "./locate";
 import { NEAR_BOUNDS } from "./seattle-area";
 import { formatDay } from "./seattle-time";
 
-// Raw TomTom tiles are a dev-only debugging aid. In production builds DEV is
-// false, so the key is never read and never lands in the bundle.
-const DEBUG_TOMTOM_KEY = import.meta.env.DEV ? (import.meta.env.VITE_TOMTOM_KEY as string | undefined) : undefined;
-const REFRESH_MS = 2 * 60_000;
+// The page fetches TomTom itself, so the key ships in the bundle. Restrict it to
+// the site's domain in TomTom's dashboard (docs/DEPLOY.md).
+const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_KEY as string | undefined;
+// Raw TomTom tiles under the bike network are a dev-only debugging aid.
+const DEBUG_TOMTOM_KEY = import.meta.env.DEV ? TOMTOM_KEY : undefined;
+// Each refresh is ~93 tiles of TomTom's 50,000 free a day; only refresh while someone's looking.
+const REFRESH_MS = 10 * 60_000;
 // Bridge odds change on the hour; re-check often enough to roll over promptly.
 const BRIDGE_REFRESH_MS = 5 * 60_000;
 const SEATTLE: [number, number] = [-122.3321, 47.6162];
@@ -441,7 +447,11 @@ const isOn = (key: string) => (document.querySelector<HTMLInputElement>(`#layers
 const popup = (lngLat: maplibregl.LngLatLike, html: string) =>
   new maplibregl.Popup({ closeButton: false, maxWidth: "260px" }).setLngLat(lngLat).setHTML(html).addTo(map);
 
+let routes: { picking: () => boolean } | null = null;
+
 map.on("click", (e) => {
+  // While setting a route's start or end, a tap places the pin instead of opening a popup.
+  if (routes?.picking()) return;
   // Lines and dots are a few px wide; give clicks and taps some slack.
   const pad = 6;
   const box: [maplibregl.PointLike, maplibregl.PointLike] = [
@@ -538,12 +548,38 @@ function refreshBridgeMarkers() {
   if (bridges) (map.getSource("bridges") as maplibregl.GeoJSONSource | undefined)?.setData(bridgeFeatures(bridges));
 }
 
-// Latest snapshot from the worker (/api/traffic), refreshed every few minutes.
+// Live traffic, fetched and matched in the page: the TomTom tiles that shared
+// lanes touch, matched to those lanes, then colored through feature-state.
+let trafficInput: { data: SharedSegments; index: SegmentIndex } | null = null;
+// Every lane, for judging routes.
+let lanes: { index: SegmentIndex; info: RouteContext["laneInfo"] } | null = null;
+
+function prepareTraffic(network: BikeNetwork) {
+  lanes = {
+    index: new SegmentIndex(network.features.map((f) => ({ id: f.properties.id, coords: f.geometry.coordinates }))),
+    info: new Map(
+      network.features.map((f) => [f.properties.id, { street: f.properties.street, separated: f.properties.separated, slope: f.properties.slope }]),
+    ),
+  };
+  const segments = network.features
+    .filter((f) => !f.properties.separated)
+    .map((f) => ({ id: f.properties.id, coords: f.geometry.coordinates }));
+  trafficInput = {
+    data: { zoom: TILE_ZOOM, tiles: tilesFor(segments.map((x) => x.coords)), segments },
+    index: new SegmentIndex(segments),
+  };
+}
+
+let trafficLoading = false;
 async function loadTraffic() {
+  if (!TOMTOM_KEY || !trafficInput || trafficLoading) return renderStamp();
+  trafficLoading = true;
   try {
-    const res = await fetch("/api/traffic");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const next = (await res.json()) as TrafficSnapshot;
+    const { data, index } = trafficInput;
+    const { buffers, failed } = await fetchTiles(TOMTOM_KEY, data);
+    // Keep the last good snapshot if TomTom is down.
+    if (buffers.length === 0) throw new Error(`all ${failed} tile requests failed`);
+    const next = buildSnapshot(index, data.zoom, buffers, failed);
     // Segments that dropped out of the new snapshot go back to their facility color.
     for (const id of Object.keys(snapshot?.segments ?? {})) {
       if (!(id in next.segments)) map.removeFeatureState({ source: "bike", id }, "level");
@@ -552,14 +588,25 @@ async function loadTraffic() {
     snapshot = next;
   } catch (err) {
     console.warn("traffic unavailable", err);
+  } finally {
+    trafficLoading = false;
   }
   renderStamp();
 }
 
+// Refresh on a timer while the page is visible, and right away when it comes back after a while.
+function scheduleTraffic() {
+  const stale = () => !snapshot || Date.now() - Date.parse(snapshot.updatedAt) >= REFRESH_MS;
+  setInterval(() => document.visibilityState === "visible" && loadTraffic(), REFRESH_MS);
+  document.addEventListener("visibilitychange", () => document.visibilityState === "visible" && stale() && loadTraffic());
+}
+
+export const trafficSnapshot = () => snapshot;
+
 function renderStamp() {
   const el = document.getElementById("updated")!;
   if (!snapshot) {
-    el.textContent = "Traffic unavailable right now";
+    el.textContent = TOMTOM_KEY ? "Traffic unavailable right now" : "Live traffic is off (no TomTom key)";
     return;
   }
   const mins = Math.floor((Date.now() - Date.parse(snapshot.updatedAt)) / 60000);
@@ -670,6 +717,34 @@ function renderLayers() {
   status();
 }
 
+// Everything the route scorer needs, from whatever has loaded so far.
+function routeContext(): RouteContext | null {
+  if (!lanes) return null;
+  const today = seattleDate();
+  const closedToday = closures
+    .map((c) => ({ c, hours: hoursOn(c, today) }))
+    .filter((x): x is { c: Closure; hours: string } => x.hours !== null);
+  const now = new Date();
+  return {
+    lanes: lanes.index,
+    laneInfo: lanes.info,
+    traffic: snapshot?.segments ?? null,
+    construction: {
+      index: new SegmentIndex(construction.flatMap((c, i) => c.lines.map((coords) => ({ id: String(i), coords })))),
+      items: construction.map((c) => ({ lane: c.lane, impact: c.impact })),
+    },
+    closures: {
+      index: new SegmentIndex(closedToday.map(({ c }, i) => ({ id: String(i), coords: c.coords }))),
+      items: closedToday.map(({ c, hours }) => ({ street: c.street, hours })),
+    },
+    closedLines: { construction: construction.map((c) => c.lines), closures: closedToday.map(({ c }) => [c.coords]) },
+    crashes: collisions ? crashesFor(collisions, "1y").spots : [],
+    bridges: bridges
+      ? bridges.bridges.filter((b) => !isStale(b, bridges!)).map((b) => ({ name: b.name, lng: b.lng, lat: b.lat, chance: bridgeChance(b, now) }))
+      : [],
+  };
+}
+
 export interface MapInputs {
   network: Promise<BikeNetwork>;
   bridges: Promise<BridgesFile | null>;
@@ -678,6 +753,8 @@ export interface MapInputs {
   closures: Promise<Closure[] | null>;
   construction: Promise<Construction[] | null>;
   onMapClick: () => void;
+  /** Shows the Route section (and the phone menu) when routes are ready. */
+  showRoutes: () => void;
 }
 
 export function startMap(inputs: MapInputs) {
@@ -690,7 +767,9 @@ export function startMap(inputs: MapInputs) {
   });
   map.on("load", async () => {
     addCityLimits();
-    addBikeLayers(await inputs.network);
+    const network = await inputs.network;
+    addBikeLayers(network);
+    prepareTraffic(network);
     addRawTrafficLayer();
     [bridges, counters] = await Promise.all([inputs.bridges, inputs.counters]);
     addMarkerLayers();
@@ -700,10 +779,11 @@ export function startMap(inputs: MapInputs) {
     if (closureList) addClosureLayer(closureList);
     const work = await inputs.construction;
     if (work) addConstructionLayer(work);
+    routes = initRoutes(map, routeContext, inputs.showRoutes);
     renderLayers();
     renderKey();
     for (const t of TOGGLES) applyToggle(t, toggleOn(t));
     await loadTraffic();
-    setInterval(loadTraffic, REFRESH_MS);
+    scheduleTraffic();
   });
 }
