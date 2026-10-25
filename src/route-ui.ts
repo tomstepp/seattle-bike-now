@@ -3,9 +3,9 @@
 // site's data, and take the chosen one to a navigation app.
 import * as maplibregl from "maplibre-gl";
 import { esc, streetCase } from "./format";
-import { fetchRoutes, routingAvailable, searchPlaces, type Route } from "./ors";
+import { fetchRoutes, nameOf, routingAvailable, searchPlaces, type Route } from "./ors";
 import { avoidAreas, googleMapsUrl, toGpx } from "./route-export";
-import { labelRoutes, scoreRoute, type RouteScore, type ScoreContext } from "./route-score";
+import { labelRoutes, routeCost, scoreRoute, type RouteScore, type ScoreContext } from "./route-score";
 
 type LngLat = [number, number];
 
@@ -125,6 +125,22 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
 
   // ---------- Ends ----------
 
+  // Tapped and dragged pins start as "Dropped pin"; swap in the nearest address when it arrives.
+  function dropPin(which: "from" | "to", at: LngLat) {
+    const end = { label: "Dropped pin", at };
+    setEnd(which, end);
+    nameOf(at)
+      .then((name) => {
+        if (!name || ends[which] !== end) return;
+        end.label = name;
+        inputs[which].value = name;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(ends));
+        } catch {}
+      })
+      .catch(() => {});
+  }
+
   function setEnd(which: "from" | "to", end: End | null, { route = true } = {}) {
     ends[which] = end;
     inputs[which].value = end?.label ?? "";
@@ -139,7 +155,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
   for (const which of ["from", "to"] as const) {
     markers[which].on("dragend", () => {
       const { lng, lat } = markers[which].getLngLat();
-      setEnd(which, { label: "Dropped pin", at: [lng, lat] });
+      dropPin(which, [lng, lat]);
     });
   }
 
@@ -149,7 +165,7 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
     if (!section.open || (ends.from && ends.to)) return;
     if (map.queryRenderedFeatures(e.point, { layers: ["route-line"].filter((l) => map.getLayer(l)) }).length) return;
     const which = ends.from ? "to" : "from";
-    setEnd(which, { label: "Dropped pin", at: [e.lngLat.lng, e.lngLat.lat] });
+    dropPin(which, [e.lngLat.lng, e.lngLat.lat]);
   });
 
   body.querySelector(".here")!.addEventListener("click", () => {
@@ -234,9 +250,14 @@ export function initRoutes(map: maplibregl.Map, context: () => RouteContext | nu
       }
       if (mine !== request) return; // a newer request replaced this one
 
+      // Best overall first, with problems priced in minutes (routeCost), then label what stands out.
+      found.sort((a, b) => routeCost(a) - routeCost(b));
       const labels = labelRoutes(found);
-      // At most two labels per card, so the header stays on one line.
-      routes = found.map((r, i) => ({ ...r, label: [r.label, ...labels[i].split(" · ")].filter(Boolean).slice(0, 2).join(" · ") }));
+      routes = found.map((r, i) => ({
+        ...r,
+        // At most two labels per card, so the header stays on one line.
+        label: [i === 0 && found.length > 1 ? "Best overall" : "", r.label, ...labels[i].split(" · ")].filter(Boolean).slice(0, 2).join(" · "),
+      }));
       selected = 0;
       showSteps = false;
       drawRoutes();

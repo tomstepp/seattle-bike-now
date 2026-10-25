@@ -114,3 +114,36 @@ export function labelRoutes(routes: { duration: number; ascent?: number; score: 
   );
   return labels.map((l) => l.filter(Boolean).slice(0, 2).join(" · "));
 }
+
+// What each problem is worth in minutes of riding, for ranking routes. Rough by design:
+// a closed lane costs a detour, a steep block a slog, a likely bridge opening a wait.
+const COST_MIN = {
+  closedLane: 8,
+  otherConstruction: 2,
+  closure: 6,
+  steepBlock: 1.5,
+  bridge: 6, // times the chance it opens
+  crash: 0.3,
+  slowTrafficKm: 3,
+  protectedShare: -4, // a fully protected route is worth 4 minutes
+};
+const CLOSED_IMPACTS = new Set(["closed", "rerouted"]);
+
+/** Minutes, plus problems priced in minutes. Lower is better. */
+export function routeCost(r: { duration: number; score: RouteScore }): number {
+  const s = r.score;
+  const lanes = new Map<string, boolean>();
+  for (const c of s.construction) lanes.set(c.lane, (lanes.get(c.lane) ?? false) || CLOSED_IMPACTS.has(c.impact));
+  const closed = [...lanes.values()].filter(Boolean).length;
+  return (
+    r.duration / 60 +
+    closed * COST_MIN.closedLane +
+    (lanes.size - closed) * COST_MIN.otherConstruction +
+    s.closures.length * COST_MIN.closure +
+    s.steep.length * COST_MIN.steepBlock +
+    s.bridges.reduce((n, b) => n + b.chance * COST_MIN.bridge, 0) +
+    s.crashes * COST_MIN.crash +
+    (s.slowTrafficMeters / 1000) * COST_MIN.slowTrafficKm +
+    (s.protectedMeters / Math.max(s.meters, 1)) * COST_MIN.protectedShare
+  );
+}

@@ -52,7 +52,8 @@ export async function fetchRoutes(from: LngLat, to: LngLat, avoid?: LngLat[][][]
     instructions: true,
     elevation: true,
     // weight_factor: how much longer an alternative may be; share_factor: how much it may overlap.
-    alternative_routes: { target_count: 3, weight_factor: 1.5, share_factor: 0.6 },
+    // Short trips rarely have alternatives that overlap less than 60%, so allow 75%.
+    alternative_routes: { target_count: 3, weight_factor: 1.8, share_factor: 0.75 },
   };
   if (avoid?.length) body.options = { avoid_polygons: { type: "MultiPolygon", coordinates: avoid } };
   const res = await fetch(`${API}/v2/directions/cycling-regular/geojson`, {
@@ -107,4 +108,14 @@ export async function searchPlaces(text: string, near?: LngLat): Promise<Place[]
   if (!res.ok) throw new Error(`OpenRouteService search: HTTP ${res.status}`);
   const json = (await res.json()) as { features: { properties: { label: string }; geometry: { coordinates: LngLat } }[] };
   return json.features.map((f) => ({ label: f.properties.label.replace(/, (WA|Washington), USA$/, ""), at: f.geometry.coordinates }));
+}
+
+/** A short name for a point ("1200 Dexter Ave N"), or null. */
+export async function nameOf(at: LngLat): Promise<string | null> {
+  if (!KEY) return null;
+  const q = new URLSearchParams({ api_key: KEY, "point.lon": String(at[0]), "point.lat": String(at[1]), size: "1", layers: "address,street,venue" });
+  const res = await fetch(`${API}/geocode/reverse?${q}`);
+  if (!res.ok) return null;
+  const json = (await res.json()) as { features: { properties: { name?: string } }[] };
+  return json.features[0]?.properties.name ?? null;
 }

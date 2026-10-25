@@ -518,6 +518,7 @@ header h1 {
 }
 
 .route-head .when {
+  white-space: nowrap;
   font-weight: 600;
   color: var(--text);
 }

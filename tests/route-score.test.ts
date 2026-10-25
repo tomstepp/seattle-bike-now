@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SegmentIndex } from "../src/match";
-import { labelRoutes, scoreRoute, type ScoreContext } from "../src/route-score";
+import { labelRoutes, routeCost, scoreRoute, type ScoreContext } from "../src/route-score";
 
 const M_LAT = 1 / 110_540;
 const M_LNG = 1 / (111_320 * Math.cos((47.62 * Math.PI) / 180));
@@ -73,5 +73,26 @@ describe("labelRoutes", () => {
 
   it("doesn't label a lone route", () => {
     expect(labelRoutes([{ duration: 900, score: score() }])).toEqual([""]);
+  });
+});
+
+describe("routeCost", () => {
+  const clean = { ...scoreRoute(route, ctx()), construction: [], closures: [], steep: [], bridges: [], crashes: 0, slowTrafficMeters: 0 };
+  it("prefers a slightly slower route without a closed lane", () => {
+    const blocked = { duration: 14 * 60, score: { ...clean, construction: [{ lane: "Dexter Ave N", impact: "closed" }] } };
+    const clear = { duration: 16 * 60, score: clean };
+    expect(routeCost(clear)).toBeLessThan(routeCost(blocked));
+  });
+
+  it("counts several permits on one street as one closed lane", () => {
+    const one = { duration: 600, score: { ...clean, construction: [{ lane: "A", impact: "closed" }] } };
+    const many = { duration: 600, score: { ...clean, construction: [1, 2, 3].map(() => ({ lane: "A", impact: "closed" })) } };
+    expect(routeCost(many)).toBe(routeCost(one));
+  });
+
+  it("still prefers a much faster route over a small problem", () => {
+    const quick = { duration: 10 * 60, score: { ...clean, steep: [{ street: "X", slope: 9 }] } };
+    const slow = { duration: 20 * 60, score: clean };
+    expect(routeCost(quick)).toBeLessThan(routeCost(slow));
   });
 });
