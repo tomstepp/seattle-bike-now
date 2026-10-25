@@ -20,6 +20,7 @@ import type { BikeNetwork, BridgesFile, CollisionsFile, CountersFile } from "./d
 import { seattleDate, sunTimes } from "./seattle-time";
 import { verdict } from "./verdict";
 import { fetchAlerts, fetchHourly, type Alert, type Hour } from "./weather";
+import { dataUrl } from "./paths";
 
 const WEATHER_REFRESH_MS = 15 * 60_000;
 // Bridge odds change on the hour; re-check often enough to roll over promptly.
@@ -67,7 +68,7 @@ const getJson = <T,>(url: string): Promise<T> =>
     return r.json() as Promise<T>;
   });
 
-const network = getJson<BikeNetwork>("/data/bike-network.geojson");
+const network = getJson<BikeNetwork>(dataUrl("bike-network.geojson"));
 // What the one-line answer is built from; it re-renders as each piece arrives.
 const latest: { hours: Hour[]; alerts: Alert[]; bridges: BridgesFile | null } = { hours: [], alerts: [], bridges: null };
 function updateVerdict() {
@@ -80,7 +81,7 @@ function updateVerdict() {
 }
 setInterval(updateVerdict, BRIDGE_REFRESH_MS);
 
-const bridges = getJson<BridgesFile>("/data/bridges.json")
+const bridges = getJson<BridgesFile>(dataUrl("bridges.json"))
   .then((f) => {
     renderBridges(f);
     setInterval(() => renderBridges(f), BRIDGE_REFRESH_MS);
@@ -93,7 +94,7 @@ const bridges = getJson<BridgesFile>("/data/bridges.json")
     renderUnavailable("bridges", "bridge data");
     return null;
   });
-const counters = getJson<CountersFile>("/data/counters.json")
+const counters = getJson<CountersFile>(dataUrl("counters.json"))
   .then((f) => {
     renderRiders(f);
     return f;
@@ -104,7 +105,7 @@ const counters = getJson<CountersFile>("/data/counters.json")
     return null;
   });
 
-const collisions = getJson<CollisionsFile>("/data/collisions.json")
+const collisions = getJson<CollisionsFile>(dataUrl("collisions.json"))
   .then((f) => {
     renderCrashes(f);
     onCrashWindow(() => renderCrashes(f));

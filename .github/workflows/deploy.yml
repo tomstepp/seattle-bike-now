@@ -1,0 +1,64 @@
+# Builds the site and publishes it to GitHub Pages (bike.tomstepp.com).
+# Runs on every push to main, and weekly to refresh the city data files
+# (bridges, counters, crashes, racks, repair stands, bike network).
+# Keys come from repository secrets; see docs/DEPLOY.md.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 13 * * 1" # Mondays around 6 AM Seattle time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # Scheduled and manual runs rebuild the data from the city's sources. The
+      # result is published but not committed; pushes use the committed files.
+      - name: Refresh city data
+        if: github.event_name != 'push'
+        run: |
+          npm run data:sdot
+          npm run data:bridges
+          npm run data:counters
+          npm run data:collisions
+          npm run data:racks
+          # Public OpenStreetMap servers are often busy; keep the committed file if so.
+          npm run data:repair || echo "::warning::Repair stands not refreshed (Overpass busy); using the committed file"
+
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
+          VITE_ORS_KEY: ${{ secrets.ORS_KEY }}
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

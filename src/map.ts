@@ -20,6 +20,7 @@ import { SEPARATED, SHARED, TRAFFIC, trafficFor, type FacilityStyle } from "./fa
 import { initLocate } from "./locate";
 import { NEAR_BOUNDS } from "./seattle-area";
 import { formatDay } from "./seattle-time";
+import { dataUrl } from "./paths";
 
 // The page fetches TomTom itself, so the key ships in the bundle. Restrict it to
 // the site's domain in TomTom's dashboard (docs/DEPLOY.md).
@@ -92,7 +93,7 @@ function addBikeLayers(network: BikeNetwork) {
 // City limits on land, under the bike network. Dashed like a map border.
 const CITY_LIMITS_COLOR = "#d6d3d1";
 function addCityLimits() {
-  map.addSource("city-limits", { type: "geojson", data: "/data/city-limits.geojson" });
+  map.addSource("city-limits", { type: "geojson", data: dataUrl("city-limits.geojson") });
   map.addLayer({
     id: "city-limits",
     type: "line",
@@ -297,7 +298,7 @@ let racks: RacksFile | null = null;
 let repair: RepairFile | null = null;
 
 async function addRackLayer() {
-  racks = (await (await fetch("/data/racks.json")).json()) as RacksFile;
+  racks = (await (await fetch(dataUrl("racks.json"))).json()) as RacksFile;
   map.addSource("racks", {
     type: "geojson",
     data: {
@@ -327,7 +328,7 @@ async function addRackLayer() {
 }
 
 async function addRepairLayer() {
-  repair = (await (await fetch("/data/repair.json")).json()) as RepairFile;
+  repair = (await (await fetch(dataUrl("repair.json"))).json()) as RepairFile;
   map.addSource("repair", {
     type: "geojson",
     data: {

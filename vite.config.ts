@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
+  // Relative asset paths, so the build works at a domain root or under a path (GitHub Pages).
+  base: "./",
   // MapLibre finds its worker next to its own module; pre-bundling moves the module.
   optimizeDeps: { exclude: ["maplibre-gl"] },
   // In dev, /api goes to `npm run dev:worker` (wrangler dev on :8787).

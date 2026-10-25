@@ -1,90 +1,79 @@
-# Deploying to bike.tomstepp.com
+# Deploying to bike.tomstepp.com (GitHub Pages)
 
-One-time setup. The order keeps tomstepp.com working the whole time: deploy to
-a `workers.dev` URL first, move DNS second, attach the custom domain last.
+The site is static: the page fetches traffic, weather, closures, construction
+and routes itself. GitHub Actions builds it and publishes it to GitHub Pages
+([.github/workflows/deploy.yml](../.github/workflows/deploy.yml)) on every push to
+`main`, and every Monday morning with freshly rebuilt city data.
 
-## 1. Cloudflare account and Workers Paid (you)
+tomstepp.com stays where it is. The only DNS change is one new `bike` record.
 
-1. Sign up at <https://dash.cloudflare.com/sign-up> and verify your email.
-2. In the dashboard: **Workers & Pages → Plans**, choose **Workers Paid** ($5/month) and add a card.
+## 1. Repository visibility (you)
 
-Why paid: each refresh fetches 93 TomTom tiles and uses ~40–110 ms of CPU; the
-free plan allows 50 fetches and 10 ms. Measured with `npm run bench`.
+GitHub Pages is free for **public** repositories; a **private** one needs a paid
+plan (GitHub Pro or higher). Pick one:
 
-## 2. Log wrangler in (you)
+- **Make it public:** Settings → General → Danger Zone → Change visibility.
+  The history has been checked: no keys or `.env` files were ever committed.
+- **Or keep it private** and upgrade to GitHub Pro.
 
-```bash
-cd ~/Documents/GitHub/seattle-bike-now
-npx wrangler login
-```
+Either way the site itself is public, and so are the two keys inside it (see step 5).
 
-A browser tab opens; click **Allow**. Check with `npx wrangler whoami`.
+## 2. Keys as repository secrets (you)
 
-## 3. First deploy and the TomTom secret
+Settings → Secrets and variables → Actions → **New repository secret**, twice:
 
-1. Deploy (builds the site, creates the KV namespace, uploads the Worker):
-   ```bash
-   npm run deploy
-   ```
-   It prints a URL like `https://seattle-bike-now.<your-subdomain>.workers.dev`.
-2. Store the TomTom key as a Worker secret. Paste the key when prompted; it is
-   never written to the repo:
-   ```bash
-   npx wrangler secret put TOMTOM_KEY
-   ```
-3. Within 10 minutes the cron runs. Check:
-   ```bash
-   curl -s https://seattle-bike-now.<your-subdomain>.workers.dev/api/traffic | head -c 200
-   ```
-   Live logs: `npx wrangler tail`.
+| Name | Value |
+|---|---|
+| `TOMTOM_KEY` | the `VITE_TOMTOM_KEY` value from `.env` |
+| `ORS_KEY` | the `VITE_ORS_KEY` value from `.env` |
 
-## 4. Move tomstepp.com DNS to Cloudflare (you)
+The workflow passes them to the build as `VITE_TOMTOM_KEY` and `VITE_ORS_KEY`.
 
-**Before you start, check email forwarding.** tomstepp.com has MX records for
-Namecheap email forwarding, which stops working once DNS leaves Namecheap.
-In Namecheap: **Domain List → tomstepp.com → Manage → Advanced DNS → Mail Settings**.
-If any forwards are listed (e.g. `me@tomstepp.com → you@gmail.com`), recreate
-them in Cloudflare under **Email → Email Routing** after step 4.3.
+## 3. Turn on Pages (you)
 
-1. Cloudflare dashboard: **Add a domain** → `tomstepp.com` → **Free** plan.
-2. Cloudflare imports the existing records. Make sure they match what
-   tomstepp.com has today (checked 2026-10-24):
+Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 
-   | Type | Name | Value | Proxy |
+Then push (or Actions → Deploy → **Run workflow**). When it finishes, the site is
+at `https://tomstepp.github.io/seattle-bike-now/`. It works at that address too,
+so you can check it before the domain is set up.
+
+## 4. bike.tomstepp.com (you)
+
+1. Namecheap → Domain List → tomstepp.com → Manage → **Advanced DNS** → Add New Record:
+
+   | Type | Host | Value | TTL |
    |---|---|---|---|
-   | A | `@` | 185.199.108.153 | DNS only |
-   | A | `@` | 185.199.109.153 | DNS only |
-   | A | `@` | 185.199.110.153 | DNS only |
-   | A | `@` | 185.199.111.153 | DNS only |
-   | CNAME | `www` | tomstepp.github.io | DNS only |
-   | MX | `@` | eforward1–5.registrar-servers.com | (only if you keep Namecheap forwarding; otherwise Email Routing replaces these) |
-   | TXT | `@` | `v=spf1 include:spf.efwd.registrar-servers.com ~all` | |
+   | CNAME | `bike` | `tomstepp.github.io.` | Automatic |
 
-   Set the GitHub Pages records to **DNS only** (grey cloud). GitHub needs to
-   see requests directly to issue and renew the tomstepp.com HTTPS certificate.
-3. Cloudflare shows two nameservers (like `ada.ns.cloudflare.com`). In Namecheap:
-   **Domain List → tomstepp.com → Manage → Nameservers → Custom DNS**, paste both, save.
-4. Wait for Cloudflare's "tomstepp.com is now active" email. Usually minutes,
-   occasionally up to 24 hours. tomstepp.com keeps working during the switch.
+2. GitHub: Settings → Pages → Custom domain: `bike.tomstepp.com` → Save.
+   GitHub checks the DNS (minutes, occasionally an hour), then issues HTTPS.
+3. Tick **Enforce HTTPS** once it's offered.
 
-DNSSEC was off when checked, so nothing to disable first.
+Optional but recommended: verify tomstepp.com in your GitHub account
+(Settings → Pages → Add a verified domain) so no one else can claim a
+subdomain of it on GitHub Pages.
 
-## 5. Attach bike.tomstepp.com
+## 5. Lock down the keys (you)
 
-Uncomment the `routes` block in `wrangler.jsonc`, then:
+Both keys ship inside the page; that's how a static site calls these services.
 
-```bash
-npm run deploy
-```
+- **TomTom:** developer.tomtom.com → Dashboard → Keys → edit the key →
+  allowed domains: `bike.tomstepp.com, tomstepp.github.io, localhost`
+  (keep `localhost` for `npm run dev`). Other websites can then no longer use it.
+- **OpenRouteService** has no domain restriction. The free quota (2,000 routes and
+  1,000 searches a day) is the only thing at risk; if it's ever abused, make a new
+  key in the dashboard and update the `ORS_KEY` secret.
 
-Cloudflare creates the `bike` DNS record and HTTPS certificate itself. Check
-<https://bike.tomstepp.com> after a minute or two.
+## Day to day
 
-## Later deploys
+- **Deploy:** push to `main`.
+- **Fresh city data:** automatic every Monday. To refresh now, Actions → Deploy →
+  Run workflow. Scheduled runs publish the new data without committing it; run
+  `npm run data` locally and commit when you want the repo's copy updated too.
+- **If a deploy fails:** the Actions tab shows which step. Tests run before every
+  build, so a failing test stops a broken deploy.
 
-```bash
-npm run deploy
-```
+## Not used
 
-After `npm run data` refreshes the SDOT network, deploy again so the Worker
-picks up the new `worker/data/shared-segments.json`.
+The `worker/` folder and `wrangler.jsonc` are an earlier Cloudflare Worker setup
+that refreshed traffic on a server. The site doesn't need them.
