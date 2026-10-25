@@ -20,6 +20,9 @@
     <link rel="preload" href="data/counters.json" as="fetch" crossorigin="anonymous" />
     <link rel="preload" href="data/collisions.json" as="fetch" crossorigin="anonymous" />
     <link rel="preconnect" href="https://data.seattle.gov" crossorigin />
+    <!-- Visit counts (goatcounter.com): no cookies. One dashboard covers all my sites, so each path is prefixed with its domain. -->
+    <script>window.goatcounter = { path: (p) => location.host + p };</script>
+    <script data-goatcounter="https://tomstepp.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   </head>
   <body>
     <div id="map"></div>
