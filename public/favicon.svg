@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Seattle Bike Now: a bike on the site's dark background, in the trail blue. -->
+  <rect width="64" height="64" rx="14" fill="#0c0c0e"/>
+  <g fill="none" stroke="#38bdf8" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="17" cy="40" r="10"/>
+    <circle cx="47" cy="40" r="10"/>
+    <!-- frame: rear triangle, main triangle, fork -->
+    <path d="M17 40 L28 40 L22 25 Z M28 40 L41 25 L22 25 M41 25 L47 40"/>
+    <!-- seat and handlebars -->
+    <path d="M18 23 H26 M38 19 H44 M41 19 V25"/>
+  </g>
+</svg>
